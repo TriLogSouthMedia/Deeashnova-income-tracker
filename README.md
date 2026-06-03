@@ -1,1 +1,0 @@
-# Deeashnova-income-tracker
