@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PayPulse - Income Tracker</title>
+<link rel="icon" type="image/png" href="logo.png">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+<style>
+:root {
+  --bg: #0a0a0f;
+  --card: rgba(255,255,255,0.06);
+  --card-solid: #12121a;
+  --card-alt: rgba(255,255,255,0.04);
+  --text: #f0f0f5;
+  --text-light: #a0a0b0;
+  --border: rgba(255,255,255,0.1);
+  --primary: #00d4ff;
+  --primary-light: rgba(0,212,255,0.15);
+  --success: #00e676;
+  --success-light: rgba(0,230,118,0.15);
+  --danger: #ff1744;
+  --danger-light: rgba(255,23,68,0.15);
+  --warning: #ff9100;
+  --warning-light: rgba(255,145,0,0.15);
+  --purple: #e040fb;
+  --purple-light: rgba(224,64,251,0.15);
+  --teal: #00bfa5;
+  --red: #ff1744;
+  --blue: #2962ff;
+  --shadow: 0 8px 32px rgba(0,0,0,0.4);
+  --shadow-hover: 0 12px 48px rgba(0,0,0,0.5);
+  --glass: rgba(255,255,255,0.05);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh;overflow-x:hidden}
+
+/* Animated gradient background */
+body::before {
+  content:'';position:fixed;top:0;left:0;width:100%;height:100%;
+  background:
+    radial-gradient(ellipse at 20% 20%, rgba(255,23,68,0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, rgba(0,212,255,0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(0,191,165,0.08) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 20%, rgba(41,98,255,0.1) 0%, transparent 50%);
+  z-index:-1;pointer-events:none;
+  animation: bgShift 20s ease-in-out infinite alternate;
+}
+@keyframes bgShift {
+  0% { transform: scale(1) rotate(0deg); }
+  100% { transform: scale(1.1) rotate(2deg); }
+}
+
+/* AUTH SCREEN */
+.auth-screen{min-height:100vh;display:flex;align-items:center;justify-content:flex-end;padding:1rem 3rem;position:relative}
+
+.auth-branding{flex:1;max-width:500px;padding:2rem;color:var(--text);display:flex;flex-direction:column;align-items:flex-start;justify-content:center;margin-right:3rem}
+.auth-brand-logo{width:120px;height:120px;border-radius:24px;overflow:hidden;margin-bottom:1.5rem;box-shadow:0 12px40px rgba(255,23,68,0.3)}
+.auth-brand-logo img{width:100%;height:100%;object-fit:cover}
+.auth-brand-title{font-size:3rem;font-weight:800;background:linear-gradient(135deg,var(--primary),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:0.5rem}
+.auth-brand-tagline{font-size:1.2rem;color:var(--text-light);margin-bottom:2rem;letter-spacing:2px;text-transform:uppercase}
+.auth-brand-features{display:flex;flex-direction:column;gap:0.8rem}
+.auth-brand-feature{display:flex;align-items:center;gap:0.8rem;font-size:1rem;color:var(--text-light)}
+.auth-brand-feature span{color:var(--success);font-size:1.2rem}
+@media(max-width:900px){.auth-screen{justify-content:center;padding:1rem}.auth-branding{display:none}}
+.auth-container{background:var(--glass);border-radius:24px;padding:2.5rem;max-width:460px;width:100%;box-shadow:var(--shadow);border:1px solid var(--border);backdrop-filter:blur(20px)}
+.auth-logo{text-align:center;margin-bottom:1.5rem}
+.auth-logo-icon{width:80px;height:80px;background:linear-gradient(135deg,var(--red),var(--blue));color:white;border-radius:20px;display:inline-flex;align-items:center;justify-content:center;font-size:2.5rem;margin-bottom:0.8rem;box-shadow:0 8px32px rgba(255,23,68,0.3);position:relative;overflow:hidden}
+.auth-logo-icon::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,transparent 40%,rgba(255,255,255,0.2) 50%,transparent 60%);animation:shine 3s infinite}
+@keyframes shine{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+.auth-logo h1{font-size:1.6rem;color:var(--text);font-weight:800;letter-spacing:-0.5px}
+.auth-logo p{color:var(--text-light);font-size:0.9rem;margin-top:0.3rem}
+.auth-tabs{display:flex;gap:0.5rem;margin-bottom:1.5rem;background:var(--card-alt);border-radius:14px;padding:0.4rem;border:1px solid var(--border)}
+.auth-tab{flex:1;padding:0.8rem;border:none;border-radius:10px;background:transparent;color:var(--text-light);font-weight:700;cursor:pointer;transition:all 0.3s;font-size:0.95rem}
+.auth-tab.active{background:linear-gradient(135deg,var(--red),var(--blue));color:white;box-shadow:0 4px16px rgba(255,23,68,0.3)}
+.auth-tab:hover:not(.active){color:var(--primary)}
+.auth-form{display:none}
+.auth-form.active{display:block;animation:fadeIn 0.3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.auth-input{width:100%;background:var(--card-alt);border:2px solid var(--border);border-radius:14px;padding:1rem;margin-bottom:0.8rem;font-size:1rem;color:var(--text);transition:all 0.3s}
+.auth-input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 4px var(--primary-light);background:var(--card)}
+.auth-input::placeholder{color:var(--text-light);opacity:0.6}
+.auth-btn{width:100%;background:linear-gradient(135deg,var(--red),var(--blue));color:white;border:none;border-radius:14px;padding:1rem;font-size:1.05rem;font-weight:700;cursor:pointer;transition:all 0.3s;margin-top:0.5rem;position:relative;overflow:hidden}
+.auth-btn:hover{transform:translateY(-2px);box-shadow:0 8px24px rgba(255,23,68,0.4)}
+.auth-btn::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,transparent 40%,rgba(255,255,255,0.15) 50%,transparent 60%);animation:shine 3s infinite}
+.auth-error{color:var(--danger);font-size:0.9rem;margin-top:0.5rem;text-align:center;font-weight:600;min-height:1.5rem}
+.auth-success{color:var(--success);font-size:0.9rem;margin-top:0.5rem;text-align:center;font-weight:600}
+.forgot-link{color:var(--primary);font-size:0.85rem;text-align:center;display:block;margin-top:0.8rem;cursor:pointer;text-decoration:none;transition:all 0.2s}
+.forgot-link:hover{color:var(--text);text-decoration:underline}
+
+/* FORGOT PASSWORD MODAL */
+.forgot-modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(10,10,15,0.9);z-index:2000;justify-content:center;align-items:center;padding:1rem;backdrop-filter:blur(8px)}
+.forgot-modal.active{display:flex}
+.forgot-box{background:var(--card-solid);border-radius:24px;padding:2rem;max-width:420px;width:100%;border:1px solid var(--border);box-shadow:var(--shadow);animation:slideUp 0.3s ease}
+.forgot-box h2{color:var(--text);margin-bottom:0.5rem;font-size:1.3rem}
+.forgot-box p{color:var(--text-light);margin-bottom:1.5rem;font-size:0.9rem}
+.forgot-step{display:none}
+.forgot-step.active{display:block}
+.back-link{color:var(--text-light);font-size:0.85rem;cursor:pointer;margin-top:1rem;display:inline-flex;align-items:center;gap:0.3rem;transition:all 0.2s}
+.back-link:hover{color:var(--primary)}
+
+/* MAIN APP */
+#app{display:none}
+.header{background:var(--glass);border-bottom:1px solid var(--border);padding:1rem 1.5rem;position:sticky;top:0;z-index:100;box-shadow:var(--shadow);backdrop-filter:blur(20px)}
+.header-inner{max-width:1400px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem}
+.logo{font-size:1.4rem;font-weight:800;color:var(--text);display:flex;align-items:center;gap:0.6rem}
+.logo-icon{width:40px;height:40px;background:linear-gradient(135deg,var(--red),var(--blue));color:white;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;box-shadow:0 4px12px rgba(255,23,68,0.3)}
+.user-info{display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap}
+.user-badge{background:var(--primary-light);color:var(--primary);padding:0.4rem 0.9rem;border-radius:20px;font-size:0.85rem;font-weight:700;border:1px solid rgba(0,212,255,0.2)}
+
+.btn{padding:0.6rem 1.2rem;border:none;border-radius:10px;cursor:pointer;font-weight:600;font-size:0.9rem;transition:all 0.3s;display:inline-flex;align-items:center;gap:0.4rem;white-space:nowrap;position:relative;overflow:hidden}
+.btn:hover{transform:translateY(-2px);box-shadow:var(--shadow-hover)}
+.btn-primary{background:linear-gradient(135deg,var(--red),var(--blue));color:white}
+.btn-primary:hover{filter:brightness(1.1)}
+.btn-success{background:linear-gradient(135deg,#00c853,var(--teal));color:white}
+.btn-success:hover{filter:brightness(1.1)}
+.btn-danger{background:linear-gradient(135deg,var(--danger),#ff4081);color:white}
+.btn-danger:hover{filter:brightness(1.1)}
+.btn-secondary{background:var(--card);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{background:var(--border);border-color:var(--primary)}
+.btn-sm{padding:0.4rem 0.8rem;font-size:0.8rem}
+.logout-btn{background:var(--danger-light);color:var(--danger);border:none;border-radius:10px;padding:0.5rem 1rem;font-weight:700;cursor:pointer;transition:all 0.3s;font-size:0.85rem}
+.logout-btn:hover{background:var(--danger);color:white;transform:translateY(-2px)}
+
+.container{max-width:1400px;margin:0 auto;padding:1.5rem}
+
+/* STATS */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:1.5rem}
+.stat-card{background:var(--glass);border-radius:16px;padding:1.2rem;border:1px solid var(--border);box-shadow:var(--shadow);transition:all 0.3s;position:relative;overflow:hidden;backdrop-filter:blur(10px)}
+.stat-card:hover{transform:translateY(-4px);box-shadow:var(--shadow-hover);border-color:rgba(0,212,255,0.2)}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:16px 16px 0 0}
+.stat-card.profit::before{background:linear-gradient(90deg,var(--success),var(--teal))}
+.stat-card.earnings::before{background:linear-gradient(90deg,var(--blue),var(--primary))}
+.stat-card.hours::before{background:linear-gradient(90deg,var(--warning),var(--red))}
+.stat-card.deliveries::before{background:linear-gradient(90deg,var(--purple),var(--blue))}
+.stat-card.km::before{background:linear-gradient(90deg,var(--teal),var(--success))}
+.stat-card.expenses::before{background:linear-gradient(90deg,var(--danger),var(--warning))}
+.stat-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;margin-bottom:0.8rem}
+.stat-card.profit .stat-icon{background:var(--success-light);color:var(--success)}
+.stat-card.earnings .stat-icon{background:linear-gradient(135deg,rgba(41,98,255,0.2),rgba(0,212,255,0.2));color:var(--primary)}
+.stat-card.hours .stat-icon{background:var(--warning-light);color:var(--warning)}
+.stat-card.deliveries .stat-icon{background:var(--purple-light);color:var(--purple)}
+.stat-card.km .stat-icon{background:linear-gradient(135deg,rgba(0,191,165,0.2),rgba(0,230,118,0.2));color:var(--teal)}
+.stat-card.expenses .stat-icon{background:var(--danger-light);color:var(--danger)}
+.stat-label{font-size:0.75rem;color:var(--text-light);font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.3rem}
+.stat-value{font-size:1.7rem;font-weight:800}
+.stat-card.profit .stat-value{color:var(--success)}
+.stat-card.earnings .stat-value{color:var(--primary)}
+.stat-card.expenses .stat-value{color:var(--danger)}
+
+/* SECTION CARDS */
+.section-card{background:var(--glass);border-radius:16px;border:1px solid var(--border);box-shadow:var(--shadow);margin-bottom:1.5rem;overflow:hidden;backdrop-filter:blur(10px);transition:all 0.3s}
+.section-card:hover{border-color:rgba(0,212,255,0.15)}
+.section-header{background:var(--card-alt);padding:1rem 1.2rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem}
+.section-title{font-size:1.1rem;font-weight:700;display:flex;align-items:center;gap:0.5rem;color:var(--text)}
+.section-body{padding:1.2rem}
+
+.rate-banner{background:linear-gradient(135deg,rgba(0,212,255,0.1),rgba(224,64,251,0.1));border-radius:12px;padding:1rem 1.2rem;margin-bottom:1.2rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;border:1px solid rgba(0,212,255,0.15)}
+.rate-current{font-size:1.8rem;font-weight:800;background:linear-gradient(135deg,var(--primary),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.rate-label{color:var(--text-light);font-size:0.9rem}
+
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem}
+.form-group{display:flex;flex-direction:column;gap:0.4rem}
+.form-label{font-size:0.75rem;color:var(--text-light);font-weight:600;text-transform:uppercase;letter-spacing:1px}
+.form-input{background:var(--card-alt);border:2px solid var(--border);border-radius:10px;padding:0.7rem;color:var(--text);font-size:0.95rem;width:100%;transition:all 0.3s}
+.form-input:focus{outline:none;border-color:var(--primary);background:var(--card);box-shadow:0 0 0 3px var(--primary-light)}
+select.form-input{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23a0a0b0' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 0.8rem center;padding-right:2rem}
+
+.expense-section{background:linear-gradient(135deg,rgba(224,64,251,0.08),rgba(41,98,255,0.08));border-radius:12px;padding:1rem;margin-top:1rem;border:1px solid rgba(224,64,251,0.15)}
+.expense-header{color:var(--purple);font-weight:700;font-size:0.95rem;margin-bottom:0.8rem;display:flex;align-items:center;gap:0.5rem}
+.expense-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0.8rem}
+.expense-item{background:var(--card);border-radius:10px;padding:0.7rem;border:1px solid var(--border);transition:all 0.2s}
+.expense-item:hover{border-color:rgba(224,64,251,0.3)}
+.expense-item-label{font-size:0.75rem;color:var(--purple);font-weight:700;text-transform:uppercase;margin-bottom:0.3rem;letter-spacing:0.5px}
+.expense-item-input{background:transparent;border:1px solid transparent;border-radius:6px;padding:0.3rem;color:var(--danger);width:100%;font-size:0.95rem;font-weight:700;transition:all 0.2s}
+.expense-item-input:focus{outline:none;border-color:var(--danger);background:var(--danger-light)}
+
+.action-bar{display:flex;gap:1rem;margin-top:1.2rem;flex-wrap:wrap}
+.action-bar .btn{flex:1;min-width:140px;justify-content:center;padding:0.8rem}
+
+.table-wrap{overflow-x:auto;border-radius:12px;max-width:100%}
+.col-date{min-width:90px}
+.col-time{min-width:70px}
+.col-num{min-width:60px;text-align:center}
+.col-money{min-width:75px;text-align:right}
+.col-small{min-width:50px;text-align:center}
+.col-notes{min-width:120px}
+table{width:100%;border-collapse:collapse;font-size:0.85rem;min-width:1400px}
+.col-date{min-width:100px}
+.col-time{min-width:80px;text-align:center}
+.col-num{min-width:70px;text-align:center}
+.col-money{min-width:85px;text-align:right}
+.col-small{min-width:55px;text-align:center}
+.col-notes{min-width:180px}
+th{background:var(--card-alt);padding:0.5rem;text-align:left;font-weight:700;color:var(--text-light);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.3px;border-bottom:2px solid var(--border);white-space:nowrap;position:sticky;top:0;z-index:10}
+td{padding:0.4rem 0.5rem;border-bottom:1px solid var(--border);white-space:nowrap}
+tr:hover{background:rgba(0,212,255,0.03)}
+.cell-input{background:transparent;border:1px solid transparent;border-radius:6px;padding:0.25rem;color:var(--text);width:100%;font-size:0.85rem;transition:all 0.2s}
+.cell-input:focus{outline:none;border-color:var(--primary);background:rgba(0,212,255,0.05);box-shadow:0 0 0 2px var(--primary-light)}
+.cell-calc{color:var(--success);font-weight:700}
+.cell-expense{color:var(--danger);font-weight:600}
+.cell-profit{color:var(--success);font-weight:800}
+.cell-loss{color:var(--danger);font-weight:800}
+.ot-badge{background:linear-gradient(135deg,var(--warning),var(--red));color:white;font-size:0.7rem;padding:0.15rem 0.5rem;border-radius:6px;font-weight:700;margin-left:0.3rem}
+.delete-btn{background:var(--danger-light);border:none;color:var(--danger);cursor:pointer;font-size:0.9rem;padding:0.3rem 0.6rem;border-radius:6px;font-weight:700;transition:all 0.2s}
+.delete-btn:hover{background:var(--danger);color:white;transform:scale(1.1)}
+
+.filter-bar{display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem}
+.filter-btn{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:0.4rem 1rem;font-size:0.85rem;cursor:pointer;transition:all 0.3s;color:var(--text-light);font-weight:600}
+.filter-btn:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-light)}
+.filter-btn.active{background:linear-gradient(135deg,var(--red),var(--blue));border-color:transparent;color:white;box-shadow:0 4px12px rgba(255,23,68,0.3)}
+
+.summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1rem;margin-bottom:1.5rem}
+.summary-card{background:var(--glass);border-radius:16px;border:1px solid var(--border);box-shadow:var(--shadow);overflow:hidden;backdrop-filter:blur(10px);transition:all 0.3s}
+.summary-card:hover{border-color:rgba(0,212,255,0.15)}
+.summary-header{background:linear-gradient(135deg,rgba(0,212,255,0.1),rgba(41,98,255,0.1));padding:1rem 1.2rem;border-bottom:1px solid var(--border)}
+.summary-header h3{color:var(--primary);font-size:1rem;font-weight:700}
+.summary-body{padding:0.8rem 1.2rem}
+.summary-row{display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid var(--border);font-size:0.9rem}
+.summary-row:last-child{border-bottom:none;font-weight:800;font-size:1.05rem;padding-top:0.7rem}
+.summary-row .label{color:var(--text-light)}
+.summary-row .value{color:var(--text);font-weight:600}
+.summary-row.total .value{color:var(--success);font-size:1.1rem}
+.summary-row.total.negative .value{color:var(--danger)}
+
+.charts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1rem;margin-bottom:1.5rem}
+
+.settings-fab{position:fixed;left:28px;width:48px;height:48px;border:none;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:99;box-shadow:0 4px16px rgba(0,0,0,0.3);font-size:1.3rem;color:white;transition:all 0.3s}
+.settings-fab:hover{transform:scale(1.08) translateY(-2px);box-shadow:0 8px24px rgba(0,0,0,0.4)}
+.settings-fab-pay{bottom:28px;background:linear-gradient(135deg,var(--red),var(--blue))}
+.settings-fab-fields{bottom:84px;background:linear-gradient(135deg,var(--purple),var(--blue))}
+.settings-panel{display:none;position:fixed;bottom:84px;left:28px;background:var(--card-solid);border:1px solid var(--border);border-radius:20px;padding:1.5rem;z-index:99;min-width:320px;box-shadow:var(--shadow-hover);backdrop-filter:blur(20px)}
+.settings-panel.active{display:block;animation:slideUp 0.3s ease}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.settings-panel h3{color:var(--primary);margin-bottom:1rem;font-size:1.1rem}
+.settings-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;gap:1rem}
+.settings-row label{font-size:0.85rem;color:var(--text-light);font-weight:600}
+.settings-row input{width:100px;background:var(--card-alt);border:2px solid var(--border);border-radius:10px;padding:0.5rem;color:var(--text);text-align:center;font-weight:700;transition:all 0.3s}
+.settings-row input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-light)}
+
+.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(10,10,15,0.85);z-index:1000;display:none;justify-content:center;align-items:center;padding:1rem;backdrop-filter:blur(8px)}
+.modal-overlay.active{display:flex}
+.modal-box{background:var(--card-solid);border-radius:20px;padding:2rem;max-width:420px;width:100%;border:1px solid var(--border);box-shadow:var(--shadow-hover);animation:slideUp 0.3s ease}
+.modal-box h2{color:var(--danger);margin-bottom:0.5rem;font-size:1.3rem}
+.modal-box p{color:var(--text-light);margin-bottom:1.5rem}
+.modal-actions{display:flex;gap:1rem;justify-content:flex-end}
+
+.toast{position:fixed;bottom:24px;right:24px;background:linear-gradient(135deg,var(--success),var(--teal));color:white;padding:1rem 1.5rem;border-radius:14px;z-index:1000;transform:translateY(120px);opacity:0;transition:all 0.4s;font-weight:700;box-shadow:var(--shadow-hover);display:flex;align-items:center;gap:0.5rem}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.error{background:linear-gradient(135deg,var(--danger),#ff4081)}
+
+.search-input{background:var(--card-alt);border:2px solid var(--border);border-radius:10px;padding:0.5rem 1rem;color:var(--text);width:220px;font-size:0.9rem;transition:all 0.3s}
+.search-input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-light)}
+
+.loading-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(10,10,15,0.9);z-index:9999;display:none;justify-content:center;align-items:center;flex-direction:column;gap:1rem;backdrop-filter:blur(10px)}
+.loading-overlay.active{display:flex}
+.spinner{width:50px;height:50px;border:4px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.export-menu{display:none;position:absolute;top:100%;right:0;background:var(--card-solid);border:1px solid var(--border);border-radius:12px;padding:0.5rem;z-index:50;box-shadow:var(--shadow-hover);min-width:160px;margin-top:0.5rem}
+.export-menu.active{display:block}
+.export-menu-item{padding:0.6rem 1rem;border-radius:8px;cursor:pointer;font-size:0.9rem;font-weight:600;color:var(--text);transition:all 0.2s;display:flex;align-items:center;gap:0.5rem}
+.export-menu-item:hover{background:var(--primary-light);color:var(--primary)}
+.export-wrap{position:relative;display:inline-block}
+
+
+/* VIEW MODAL */
+.view-modal-box{max-width:600px;width:100%;max-height:85vh;overflow-y:auto;padding:0}
+.view-modal-header{background:linear-gradient(135deg,var(--red),var(--blue));padding:1.2rem 1.5rem;display:flex;justify-content:space-between;align-items:center;border-radius:20px 20px 0 0}
+.view-modal-header h2{color:white;margin:0;font-size:1.2rem}
+.view-close-btn{background:rgba(255,255,255,0.2);border:none;color:white;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:1.2rem;display:flex;align-items:center;justify-content:center;transition:all 0.2s}
+.view-close-btn:hover{background:rgba(255,255,255,0.3);transform:scale(1.1)}
+.view-modal-body{padding:1.5rem}
+.view-section{margin-bottom:1.2rem}
+.view-section-title{font-size:0.8rem;color:var(--text-light);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.6rem;padding-bottom:0.3rem;border-bottom:1px solid var(--border)}
+.view-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0.8rem}
+.view-item{display:flex;justify-content:space-between;align-items:center;padding:0.5rem 0;border-bottom:1px solid var(--border)}
+.view-item:last-child{border-bottom:none}
+.view-item-label{font-size:0.85rem;color:var(--text-light);font-weight:600}
+.view-item-value{font-size:0.95rem;color:var(--text);font-weight:700}
+.view-item-value.positive{color:var(--success)}
+.view-item-value.negative{color:var(--danger)}
+.view-item-value.warning{color:var(--warning)}
+.view-notes{background:var(--card-alt);border-radius:10px;padding:0.8rem;font-size:0.9rem;color:var(--text);min-height:60px;white-space:pre-wrap}
+.view-modal-actions{padding:1rem 1.5rem;border-top:1px solid var(--border);display:flex;gap:1rem;justify-content:flex-end;background:var(--card-alt);border-radius:0 0 20px 20px}
+
+/* Edit mode within view modal */
+.edit-input{background:var(--card-alt);border:2px solid var(--border);border-radius:8px;padding:0.4rem 0.6rem;color:var(--text);font-size:0.9rem;width:120px;text-align:right;transition:all 0.2s}
+.edit-input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-light);background:var(--card)}
+.edit-input.time-input{width:90px;text-align:center}
+.edit-input.date-input{width:110px;text-align:center}
+.edit-input.notes-input{width:100%;text-align:left;min-height:60px;resize:vertical}
+.edit-select{background:var(--card-alt);border:2px solid var(--border);border-radius:8px;padding:0.4rem 0.6rem;color:var(--text);font-size:0.9rem;cursor:pointer}
+.edit-select:focus{outline:none;border-color:var(--primary)}
+
+/* View button in table */
+.view-btn{background:var(--primary-light);border:none;color:var(--primary);cursor:pointer;font-size:0.9rem;padding:0.3rem 0.6rem;border-radius:6px;font-weight:700;transition:all 0.2s;margin-right:0.3rem}
+.view-btn:hover{background:var(--primary);color:white;transform:scale(1.1)}
+
+body.light-mode .view-modal-box{background:#ffffff}
+body.light-mode .view-modal-body{background:#ffffff}
+body.light-mode .view-modal-actions{background:#f8f9fa}
+body.light-mode .view-notes{background:#f0f2f5}
+body.light-mode .edit-input{background:#f8f9fa;border-color:rgba(0,0,0,0.1);color:var(--text)}
+body.light-mode .edit-input:focus{background:#ffffff}
+body.light-mode .edit-select{background:#f8f9fa;border-color:rgba(0,0,0,0.1);color:var(--text)}
+
+
+/* FIELD MANAGER */
+.field-manager-box{max-width:520px;width:100%;max-height:85vh;overflow-y:auto;padding:0}
+.field-manager-body{padding:1.5rem}
+.field-manager-section{margin-bottom:1.5rem}
+.field-manager-section-title{font-size:0.85rem;color:var(--primary);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.8rem;padding-bottom:0.4rem;border-bottom:2px solid var(--primary)}
+.field-manager-list{display:flex;flex-direction:column;gap:0.5rem}
+.field-manager-item{background:var(--card-alt);border:1px solid var(--border);border-radius:10px;padding:0.7rem 1rem;display:flex;align-items:center;gap:0.7rem;transition:all 0.2s;cursor:grab}
+.field-manager-item:hover{border-color:var(--primary);background:var(--primary-light)}
+.field-manager-item.dragging{opacity:0.5;transform:scale(0.98)}
+.field-manager-item .drag-handle{color:var(--text-light);font-size:1.1rem;cursor:grab;padding:0.2rem}
+.field-manager-item .drag-handle:active{cursor:grabbing}
+.field-manager-item .field-name{flex:1;font-size:0.9rem;font-weight:600;color:var(--text)}
+.field-manager-item .field-name input{background:transparent;border:1px solid transparent;border-radius:6px;padding:0.2rem 0.4rem;color:var(--text);font-size:0.9rem;font-weight:600;width:100%}
+.field-manager-item .field-name input:focus{border-color:var(--primary);background:var(--card);outline:none}
+.field-manager-item .field-section{font-size:0.75rem;color:var(--text-light);background:var(--card);padding:0.2rem 0.5rem;border-radius:6px;border:1px solid var(--border);white-space:nowrap}
+.field-manager-item .field-actions{display:flex;gap:0.3rem}
+.field-manager-item .field-actions button{background:transparent;border:none;cursor:pointer;font-size:0.9rem;padding:0.3rem;border-radius:6px;transition:all 0.2s}
+.field-manager-item .field-actions .move-btn{color:var(--primary)}
+.field-manager-item .field-actions .move-btn:hover{background:var(--primary-light)}
+.field-manager-item .field-actions .hide-btn{color:var(--warning)}
+.field-manager-item .field-actions .hide-btn:hover{background:var(--warning-light)}
+.field-manager-item .field-actions .delete-btn{color:var(--danger)}
+.field-manager-item .field-actions .delete-btn:hover{background:var(--danger-light)}
+.field-manager-item.hidden-field{opacity:0.5}
+.field-manager-item.hidden-field .field-name{text-decoration:line-through;color:var(--text-light)}
+.field-manager-add{margin-top:1rem}
+
+body.light-mode .field-manager-item{background:#f8f9fa;border-color:rgba(0,0,0,0.08)}
+body.light-mode .field-manager-item:hover{border-color:var(--primary);background:var(--primary-light)}
+body.light-mode .field-manager-item .field-section{background:#ffffff;border-color:rgba(0,0,0,0.08)}
+body.light-mode .field-manager-item .field-name input{color:var(--text)}
+body.light-mode .field-manager-item .field-name input:focus{background:#ffffff}
+
+
+/* MONTHLY VIEW */
+.monthly-view-box{max-width:900px;width:100%;max-height:85vh;overflow-y:auto;padding:0}
+.monthly-view-body{padding:1.5rem}
+.monthly-section{margin-bottom:2rem}
+.monthly-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;padding-bottom:0.6rem;border-bottom:2px solid var(--primary)}
+.monthly-title{font-size:1.2rem;font-weight:800;color:var(--primary)}
+.monthly-stats{display:flex;gap:1.5rem;font-size:0.85rem;color:var(--text-light)}
+.monthly-stats span{font-weight:700;color:var(--text)}
+.monthly-table{width:100%;border-collapse:collapse;font-size:0.85rem;min-width:auto}
+.monthly-table th{background:var(--card-alt);padding:0.5rem 0.7rem;text-align:left;font-weight:700;color:var(--text-light);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid var(--border)}
+.monthly-table td{padding:0.5rem 0.7rem;border-bottom:1px solid var(--border);color:var(--text)}
+.monthly-table tr:hover{background:rgba(0,212,255,0.03)}
+.monthly-table .m-date{font-weight:700;white-space:nowrap}
+.monthly-table .m-time{color:var(--text-light);font-size:0.8rem}
+.monthly-table .m-hours{font-weight:700;text-align:center}
+.monthly-table .m-ot{color:var(--warning);font-weight:700;text-align:center}
+.monthly-table .m-gross{color:var(--primary);font-weight:700;text-align:right}
+.monthly-table .m-net{color:var(--success);font-weight:700;text-align:right}
+.monthly-table .m-exp{color:var(--danger);font-weight:600;text-align:right}
+.monthly-table .m-profit{font-weight:800;text-align:right}
+.monthly-table .m-profit.positive{color:var(--success)}
+.monthly-table .m-profit.negative{color:var(--danger)}
+.monthly-table .m-notes{color:var(--text-light);font-size:0.8rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.monthly-summary{background:var(--card-alt);border-radius:12px;padding:1rem;margin-top:1rem;display:flex;flex-wrap:wrap;gap:1.5rem;justify-content:space-around}
+.monthly-summary-item{text-align:center}
+.monthly-summary-item .label{font-size:0.75rem;color:var(--text-light);text-transform:uppercase;letter-spacing:0.5px}
+.monthly-summary-item .value{font-size:1.1rem;font-weight:800;color:var(--text)}
+.monthly-summary-item .value.positive{color:var(--success)}
+.monthly-summary-item .value.negative{color:var(--danger)}
+.monthly-empty{text-align:center;padding:3rem;color:var(--text-light);font-size:1rem}
+.monthly-nav{display:flex;gap:0.5rem;margin-bottom:1.5rem;justify-content:center}
+.monthly-nav-btn{background:var(--card-alt);border:1px solid var(--border);border-radius:10px;padding:0.5rem 1rem;font-size:0.85rem;color:var(--text);cursor:pointer;transition:all 0.2s;font-weight:600}
+.monthly-nav-btn:hover{border-color:var(--primary);color:var(--primary)}
+.monthly-nav-btn.active{background:linear-gradient(135deg,var(--red),var(--blue));color:white;border-color:transparent}
+
+body.light-mode .monthly-table th{background:#f0f2f5}
+body.light-mode .monthly-table tr:hover{background:rgba(0,0,0,0.02)}
+body.light-mode .monthly-summary{background:#f0f2f5}
+body.light-mode .monthly-nav-btn{background:#ffffff;border-color:rgba(0,0,0,0.1)}
+body.light-mode .monthly-nav-btn.active{color:white}
+
+@media(max-width:768px){.stats-grid{grid-template-columns:repeat(2,1fr)}.form-grid{grid-template-columns:1fr 1fr}.expense-grid{grid-template-columns:1fr 1fr}.action-bar .btn{flex:1 1 100%}.charts-grid{grid-template-columns:1fr}.summary-grid{grid-template-columns:1fr}.settings-panel{left:12px;right:12px;min-width:auto}}
+@media(max-width:480px){.stats-grid{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.header-inner{flex-direction:column}.logo{justify-content:center}
+.auth-branding{flex:1;max-width:500px;padding:2rem;color:var(--text);display:flex;flex-direction:column;align-items:flex-start;justify-content:center;margin-right:3rem}
+.auth-brand-logo{width:120px;height:120px;border-radius:24px;overflow:hidden;margin-bottom:1.5rem;box-shadow:0 12px40px rgba(255,23,68,0.3)}
+.auth-brand-logo img{width:100%;height:100%;object-fit:cover}
+.auth-brand-title{font-size:3rem;font-weight:800;background:linear-gradient(135deg,var(--primary),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:0.5rem}
+.auth-brand-tagline{font-size:1.2rem;color:var(--text-light);margin-bottom:2rem;letter-spacing:2px;text-transform:uppercase}
+.auth-brand-features{display:flex;flex-direction:column;gap:0.8rem}
+.auth-brand-feature{display:flex;align-items:center;gap:0.8rem;font-size:1rem;color:var(--text-light)}
+.auth-brand-feature span{color:var(--success);font-size:1.2rem}
+@media(max-width:900px){.auth-screen{justify-content:center;padding:1rem}.auth-branding{display:none}}
+.auth-container{padding:1.5rem}}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:#334;border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:#445}
+
+/* THEME TOGGLE */
+
+.field-toggles{display:grid;grid-template-columns:1fr 1fr;gap:0.5rem}
+.toggle-item{display:flex;align-items:center;gap:0.5rem;cursor:pointer;padding:0.4rem;border-radius:8px;transition:all 0.2s}
+.toggle-item:hover{background:var(--primary-light)}
+.toggle-item input{cursor:pointer;width:16px;height:16px;accent-color:var(--primary)}
+.toggle-item span{font-size:0.85rem;color:var(--text);font-weight:600}
+.theme-toggle-settings{display:flex;gap:0.5rem;justify-content:center}
+.theme-toggle-settings .theme-btn{width:40px;height:40px;border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.2rem;transition:all 0.3s;background:var(--card-alt);color:var(--text-light);border:1px solid var(--border)}
+.theme-toggle-settings .theme-btn:hover{background:var(--primary-light);color:var(--primary)}
+.theme-toggle-settings .theme-btn.active{background:linear-gradient(135deg,var(--red),var(--blue));color:white;border-color:transparent;box-shadow:0 4px12px rgba(255,23,68,0.3)}
+.theme-toggle{position:fixed;top:24px;right:24px;z-index:200;display:flex;align-items:center;gap:0.5rem;background:var(--glass);border:1px solid var(--border);border-radius:30px;padding:0.3rem;backdrop-filter:blur(10px);box-shadow:var(--shadow)}
+.theme-btn{width:36px;height:36px;border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1rem;transition:all 0.3s;background:transparent;color:var(--text-light)}
+.theme-btn:hover{background:var(--primary-light);color:var(--primary)}
+.theme-btn.active{background:linear-gradient(135deg,var(--red),var(--blue));color:white;box-shadow:0 4px12px rgba(255,23,68,0.3)}
+
+/* PASSWORD EYE ICON */
+.pw-wrap{position:relative}
+.pw-eye{position:absolute;right:1rem;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--text-light);font-size:1.1rem;user-select:none;transition:all 0.2s;padding:0.3rem;border-radius:6px}
+.pw-eye:hover{color:var(--primary);background:var(--primary-light)}
+.pw-eye:active{color:var(--primary)}
+
+/* LIGHT MODE VARIABLES */
+body.light-mode{--bg:#f0f2f5;--card:rgba(255,255,255,0.85);--card-solid:#ffffff;--card-alt:rgba(240,242,245,0.8);--text:#1a1a2e;--text-light:#5a5a7a;--border:rgba(0,0,0,0.08);--glass:rgba(255,255,255,0.7)}
+
+/* Auth screen light mode */
+body.light-mode .auth-branding{color:var(--text)}
+body.light-mode .auth-brand-tagline{color:var(--text-light)}
+body.light-mode .auth-brand-feature{color:var(--text-light)}
+body.light-mode .auth-container{background:rgba(255,255,255,0.9);border:1px solid rgba(0,0,0,0.1)}
+body.light-mode .auth-logo h1{color:var(--text)}
+body.light-mode .auth-logo p{color:var(--text-light)}
+body.light-mode .auth-tabs{background:#f0f2f5;border-color:rgba(0,0,0,0.08)}
+body.light-mode .auth-tab{color:var(--text-light)}
+body.light-mode .auth-tab.active{color:white}
+body.light-mode .auth-tab:hover:not(.active){color:var(--primary)}
+body.light-mode .auth-input{background:#f8f9fa;border-color:rgba(0,0,0,0.1);color:var(--text)}
+body.light-mode .auth-input:focus{background:#ffffff;border-color:var(--primary)}
+body.light-mode .auth-input::placeholder{color:var(--text-light);opacity:0.6}
+body.light-mode .forgot-box{background:#ffffff;border-color:rgba(0,0,0,0.1)}
+body.light-mode .forgot-box h2{color:var(--text)}
+body.light-mode .forgot-box p{color:var(--text-light)}
+body.light-mode .back-link{color:var(--text-light)}
+body.light-mode .back-link:hover{color:var(--primary)}
+body.light-mode .forgot-link{color:var(--primary)}
+body.light-mode .forgot-link:hover{color:var(--text)}
+body.light-mode .pw-eye{color:var(--text-light)}
+body.light-mode .pw-eye:hover{color:var(--primary);background:var(--primary-light)}
+
+/* Main app light mode */
+body.light-mode .section-card{background:rgba(255,255,255,0.85);border:1px solid rgba(0,0,0,0.08)}
+body.light-mode .stat-card{background:rgba(255,255,255,0.85)}
+body.light-mode .summary-card{background:rgba(255,255,255,0.85)}
+body.light-mode .settings-panel{background:#ffffff;border:1px solid rgba(0,0,0,0.1)}
+body.light-mode .modal-box{background:#ffffff}
+body.light-mode .export-menu{background:#ffffff}
+body.light-mode .form-input{background:#f8f9fa;border-color:rgba(0,0,0,0.1);color:var(--text)}
+body.light-mode .form-input:focus{background:#ffffff}
+body.light-mode .search-input{background:#f8f9fa;border-color:rgba(0,0,0,0.1);color:var(--text)}
+body.light-mode .cell-input:focus{background:#ffffff}
+body.light-mode .expense-item{background:#ffffff;border-color:rgba(0,0,0,0.08)}
+body.light-mode .filter-btn{background:#ffffff;border-color:rgba(0,0,0,0.1);color:var(--text-light)}
+body.light-mode .filter-btn:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-light)}
+body.light-mode .filter-btn.active{color:white}
+body.light-mode .settings-row input{background:#f8f9fa;border-color:rgba(0,0,0,0.1);color:var(--text)}
+body.light-mode .loading-overlay{background:rgba(240,242,245,0.95)}
+body.light-mode::-webkit-scrollbar-track{background:#f0f2f5}
+body.light-mode::-webkit-scrollbar-thumb{background:#ccc}
+body.light-mode .table-wrap table tbody tr:hover{background:rgba(0,0,0,0.02)}
+body.light-mode .theme-toggle{background:rgba(255,255,255,0.9);border-color:rgba(0,0,0,0.1)}
+body.light-mode .theme-btn{color:var(--text-light)}
+body.light-mode .theme-btn:hover{background:var(--primary-light);color:var(--primary)}
+
+
+#profilePanel { left: auto; right: 24px; }
+#profilePanel.active { display: block !important; }
+#profPhotoPreview[src] { display: block !important; }
+#profPhotoPreview[src] + #profPhotoPlaceholder { display: none; }
+
+</style>
+</head>
+<body>
+
+
+<div class="loading-overlay" id="loading"><div class="spinner"></div><div style="color:var(--text-light);font-weight:600">Loading...</div></div>
+
+<!-- ==================== AUTH SCREEN ==================== -->
+<div class="auth-screen" id="authScreen">
+  <div class="auth-branding">
+  <div class="auth-brand-logo">
+    <img src="logo.png" alt="PayPulse" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+    <div class="auth-brand-fallback" style="display:none;width:120px;height:120px;background:linear-gradient(135deg,var(--red),var(--blue));border-radius:24px;align-items:center;justify-content:center;font-size:4rem;color:white;">&#128200;</div>
+  </div>
+  <h1 class="auth-brand-title">PayPulse</h1>
+  <p class="auth-brand-tagline">Track. Manage. Grow.</p>
+  <div class="auth-brand-features">
+    <div class="auth-brand-feature"><span>&#9989;</span> Track shifts & earnings</div>
+    <div class="auth-brand-feature"><span>&#9989;</span> Monitor expenses</div>
+    <div class="auth-brand-feature"><span>&#9989;</span> Export reports</div>
+    <div class="auth-brand-feature"><span>&#9989;</span> AI insights</div>
+  </div>
+</div>
+<div class="auth-container">
+    <div class="auth-logo">
+      <div class="auth-logo-icon">&#128200;</div>
+      <h1>PayPulse</h1>
+      <p>Track your shifts, earnings & expenses</p>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchTab('login')">Sign In</button>
+      <button class="auth-tab" onclick="switchTab('register')">Create Account</button>
+    </div>
+
+    <!-- Login Form -->
+    <form class="auth-form active" id="loginForm" onsubmit="handleLogin(event)">
+      <input type="text" class="auth-input" id="loginUsername" placeholder="Username" required autocomplete="username">
+      <div class="pw-wrap">
+      <input type="password" class="auth-input" id="loginPassword" placeholder="Password" required autocomplete="current-password" style="padding-right:2.8rem">
+      <span class="pw-eye" onmousedown="showPW('loginPassword')" onmouseup="hidePW('loginPassword')" onmouseleave="hidePW('loginPassword')" ontouchstart="showPW('loginPassword')" ontouchend="hidePW('loginPassword')">&#128065;</span>
+    </div>
+      <button type="submit" class="auth-btn">Sign In</button>
+      <div class="auth-error" id="loginError"></div>
+      <a class="forgot-link" onclick="showForgot()">Forgot Password?</a>
+    </form>
+
+    <!-- Register Form -->
+    <form class="auth-form" id="registerForm" onsubmit="handleRegister(event)">
+      <input type="text" class="auth-input" id="regUsername" placeholder="Choose Username" required minlength="3" autocomplete="username">
+      <div class="pw-wrap">
+      <input type="password" class="auth-input" id="regPassword" placeholder="Choose Password" required minlength="4" autocomplete="new-password" style="padding-right:2.8rem">
+      <span class="pw-eye" onmousedown="showPW('regPassword')" onmouseup="hidePW('regPassword')" onmouseleave="hidePW('regPassword')" ontouchstart="showPW('regPassword')" ontouchend="hidePW('regPassword')">&#128065;</span>
+    </div>
+      <div class="pw-wrap">
+      <input type="password" class="auth-input" id="regPasswordConfirm" placeholder="Confirm Password" required autocomplete="new-password" style="padding-right:2.8rem">
+      <span class="pw-eye" onmousedown="showPW('regPasswordConfirm')" onmouseup="hidePW('regPasswordConfirm')" onmouseleave="hidePW('regPasswordConfirm')" ontouchstart="showPW('regPasswordConfirm')" ontouchend="hidePW('regPasswordConfirm')">&#128065;</span>
+    </div>
+      <input type="text" class="auth-input" id="regSecurityQ" placeholder="Security Question (e.g. What is your pet's name?)" required>
+      <input type="text" class="auth-input" id="regSecurityA" placeholder="Security Answer" required>
+      <button type="submit" class="auth-btn">Create Account</button>
+      <div class="auth-error" id="registerError"></div>
+      <div class="auth-success" id="registerSuccess"></div>
+    </form>
+  </div>
+</div>
+
+<!-- ==================== FORGOT PASSWORD MODAL ==================== -->
+<div class="forgot-modal" id="forgotModal">
+  <div class="forgot-box">
+    <h2>&#128273; Reset Password</h2>
+    <p id="forgotDesc">Enter your username to verify your identity.</p>
+
+    <!-- Step 1: Enter username -->
+    <div class="forgot-step active" id="forgotStep1">
+      <input type="text" class="auth-input" id="forgotUsername" placeholder="Enter your username">
+      <button class="auth-btn" onclick="checkUsername()">Continue</button>
+      <div class="auth-error" id="forgotError1"></div>
+      <a class="back-link" onclick="hideForgot()">&#8592; Back to Login</a>
+    </div>
+
+    <!-- Step 2: Answer security question -->
+    <div class="forgot-step" id="forgotStep2">
+      <div style="color:var(--primary);font-weight:700;margin-bottom:0.8rem;font-size:0.95rem" id="securityQDisplay"></div>
+      <input type="text" class="auth-input" id="forgotAnswer" placeholder="Your answer">
+      <button class="auth-btn" onclick="verifyAnswer()">Verify</button>
+      <div class="auth-error" id="forgotError2"></div>
+      <a class="back-link" onclick="backToStep1()">&#8592; Back</a>
+    </div>
+
+    <!-- Step 3: New password -->
+    <div class="forgot-step" id="forgotStep3">
+      <div class="pw-wrap">
+      <input type="password" class="auth-input" id="forgotNewPass" placeholder="New Password" minlength="4" style="padding-right:2.8rem">
+      <span class="pw-eye" onmousedown="showPW('forgotNewPass')" onmouseup="hidePW('forgotNewPass')" onmouseleave="hidePW('forgotNewPass')" ontouchstart="showPW('forgotNewPass')" ontouchend="hidePW('forgotNewPass')">&#128065;</span>
+    </div>
+      <div class="pw-wrap">
+      <input type="password" class="auth-input" id="forgotConfirmPass" placeholder="Confirm New Password" style="padding-right:2.8rem">
+      <span class="pw-eye" onmousedown="showPW('forgotConfirmPass')" onmouseup="hidePW('forgotConfirmPass')" onmouseleave="hidePW('forgotConfirmPass')" ontouchstart="showPW('forgotConfirmPass')" ontouchend="hidePW('forgotConfirmPass')">&#128065;</span>
+    </div>
+      <button class="auth-btn" onclick="resetPassword()">Reset Password</button>
+      <div class="auth-error" id="forgotError3"></div>
+      <div class="auth-success" id="forgotSuccess"></div>
+      <a class="back-link" onclick="backToStep2()">&#8592; Back</a>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MAIN APP ==================== -->
+<div id="app">
+<div class="header">
+  <div class="header-inner">
+    <div class="logo"><div class="logo-icon">&#128200;</div>PayPulse</div>
+    <div class="user-info">
+      <div class="user-badge" id="userBadge">&#128100; Guest</div>
+      <button class="btn btn-secondary btn-sm" onclick="showMonthlyView()">&#128197; Monthly View</button>
+      <div class="export-wrap">
+        <button class="btn btn-secondary btn-sm" onclick="toggleExportMenu()">&#128196; Export</button>
+        <div class="export-menu" id="exportMenu">
+          <div class="export-menu-item" onclick="exportCSV();toggleExportMenu()">&#128209; Export CSV</div>
+          <div class="export-menu-item" onclick="exportPDF();toggleExportMenu()">&#128195; Export PDF + Report</div>
+        </div>
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="showClear()">&#128465; Clear</button>
+      <button class="logout-btn" onclick="handleLogout()">&#128682; Logout</button>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="stats-grid">
+    <div class="stat-card profit"><div class="stat-icon">&#128176;</div><div class="stat-label">Net Profit</div><div class="stat-value" id="dProfit">$0.00</div></div>
+    <div class="stat-card earnings"><div class="stat-icon">&#128185;</div><div class="stat-label">Gross Earnings</div><div class="stat-value" id="dGross">$0.00</div></div>
+    <div class="stat-card hours"><div class="stat-icon">&#9200;</div><div class="stat-label">Hours Worked</div><div class="stat-value" id="dHours">0.00</div></div>
+    <div class="stat-card deliveries"><div class="stat-icon">&#128666;</div><div class="stat-label">Deliveries</div><div class="stat-value" id="dDeliv">0</div></div>
+    <div class="stat-card km"><div class="stat-icon">&#128205;</div><div class="stat-label">Kilometers</div><div class="stat-value" id="dKM">0</div></div>
+    <div class="stat-card expenses"><div class="stat-icon">&#128737;</div><div class="stat-label">Total Expenses</div><div class="stat-value" id="dExp">$0.00</div></div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="section-card"><div class="section-header"><div class="section-title">&#128200; Earnings Trend</div></div><div class="section-body"><div style="height:250px"><canvas id="cEarn"></canvas></div></div></div>
+    <div class="section-card"><div class="section-header"><div class="section-title">&#9981; Fuel vs Earnings</div></div><div class="section-body"><div style="height:250px"><canvas id="cFuel"></canvas></div></div></div>
+    <div class="section-card"><div class="section-header"><div class="section-title">&#9201; Hours & Deliveries</div></div><div class="section-body"><div style="height:250px"><canvas id="cHours"></canvas></div></div></div>
+    <div class="section-card"><div class="section-header"><div class="section-title">&#127919; Expense Breakdown</div></div><div class="section-body"><div style="height:250px"><canvas id="cExp"></canvas></div></div></div>
+  </div>
+
+  <div class="section-card">
+    <div class="section-header"><div class="section-title">&#128221; Add New Shift</div></div>
+    <div class="section-body">
+      <div class="rate-banner">
+        <div class="rate-info">
+          <div><div class="rate-label">Current Hourly Rate</div><div class="rate-current" id="rateDisplay">$17.85/hr</div></div>
+          <div style="color:var(--text-light);font-size:0.85rem">Tax: <span id="taxDisplay">12%</span> | OT: <span id="otDisplay">8h</span> @ <span id="otmDisplay">1.5x</span></div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="toggleSettings()">&#9881; Edit Rate</button>
+      </div>
+      <div style="margin-bottom:0.5rem"><strong style="color:var(--primary);font-size:0.9rem">&#128188; Work Details</strong></div>
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">Date (DDMM)</label><input type="text" class="form-input" id="eDate" placeholder="1505" maxlength="4"></div>
+        <div class="form-group"><label class="form-label">Time In</label><input type="time" class="form-input" id="eIn"></div>
+        <div class="form-group"><label class="form-label">Time Out</label><input type="time" class="form-input" id="eOut"></div>
+        <div class="form-group"><label class="form-label">KM Driven</label><input type="number" class="form-input" id="eKM" placeholder="0.0" step="0.1"></div>
+        <div class="form-group deliv-field"><label class="form-label">Deliveries</label><input type="number" class="form-input" id="eDeliv" placeholder="0"></div>
+        <div class="form-group"><label class="form-label">Fuel Type</label><select class="form-input" id="eFuelType"><option value="regular">Regular</option><option value="premium">Premium</option><option value="diesel">Diesel</option></select></div>
+        <div class="form-group"><label class="form-label">Fuel Cost ($)</label><input type="number" class="form-input" id="eFuel" placeholder="0.00" step="0.01"></div>
+        <div class="form-group tips-field"><label class="form-label">Tips ($)</label><input type="number" class="form-input" id="eTips" placeholder="0.00" step="0.01"></div>
+      </div>
+      <div class="expense-section">
+        <div class="expense-header"><span>&#128179;</span> Personal Expenses (Optional)</div>
+        <div class="expense-grid">
+          <div class="expense-item"><div class="expense-item-label" id="form-label-grocery">Grocery</div><input type="number" class="expense-item-input" id="eGroc" placeholder="0.00" step="0.01"></div>
+          <div class="expense-item"><div class="expense-item-label" id="form-label-phone">Phone Bill</div><input type="number" class="expense-item-input" id="ePhone" placeholder="0.00" step="0.01"></div>
+          <div class="expense-item"><div class="expense-item-label" id="form-label-wifi">WiFi Bill</div><input type="number" class="expense-item-input" id="eWifi" placeholder="0.00" step="0.01"></div>
+          <div class="expense-item"><div class="expense-item-label" id="form-label-food">Food/Rest</div><input type="number" class="expense-item-input" id="eFood" placeholder="0.00" step="0.01"></div>
+          <div class="expense-item"><div class="expense-item-label" id="form-label-maintenance">Car Maint</div><input type="number" class="expense-item-input" id="eMaint" placeholder="0.00" step="0.01"></div>
+          <div class="expense-item"><div class="expense-item-label" id="form-label-insurance">Insurance</div><input type="number" class="expense-item-input" id="eInsur" placeholder="0.00" step="0.01"></div>
+          <div class="expense-item"><div class="expense-item-label" id="form-label-misc">Misc</div><input type="number" class="expense-item-input" id="eMisc" placeholder="0.00" step="0.01"></div>
+          <div class="expense-item"><div class="expense-item-label" id="form-label-other">Other</div><input type="number" class="expense-item-input" id="eOther" placeholder="0.00" step="0.01"></div>
+        </div>
+      </div>
+      <div class="form-group" style="margin-top:1rem"><label class="form-label">Notes</label><input type="text" class="form-input" id="e_notes" placeholder="Any notes for this shift..."></div>
+      <div class="action-bar">
+        <button class="btn btn-success" onclick="addEntry()" style="font-size:1.05rem"><span style="font-size:1.2rem">&#128190;</span> Save Shift</button>
+        <button class="btn btn-secondary" onclick="clearForm()"><span style="font-size:1.2rem">&#128260;</span> Reset Form</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="filter-bar" id="fBar">
+    <button class="filter-btn active" onclick="setFilter('all',this)">All Time</button>
+    <button class="filter-btn" onclick="setFilter('week',this)">This Week</button>
+    <button class="filter-btn" onclick="setFilter('month',this)">This Month</button>
+    <button class="filter-btn" onclick="setFilter('ot',this)">Overtime Only</button>
+  </div>
+
+  <div class="section-card">
+    <div class="section-header"><div class="section-title">&#128203; Shift History</div><input type="text" class="search-input" id="sBox" placeholder="&#128269; Search date..." oninput="doSearch()"></div>
+    <div class="table-wrap" style="border-radius:12px;overflow-x:auto;max-width:100%;margin:0 -1.2rem;padding:0 1.2rem">
+      <table id="dTable">
+        <thead><tr>
+  <th class="col-date">Date</th>
+  <th class="col-time">In</th>
+  <th class="col-time">Out</th>
+  <th class="col-num">Reg Hrs</th>
+  <th class="col-num">OT Hrs</th>
+  <th class="col-num">Rate</th>
+  <th class="col-money">Gross</th>
+  <th class="col-money">Tax</th>
+  <th class="col-money">Net</th>
+  <th class="col-num">KM</th>
+  <th class="col-small delivCol">Deliv</th>
+  <th class="col-money">Tips</th>
+  <th class="col-money">Fuel</th>
+  <th class="col-money">Expenses</th>
+  <th class="col-money">Profit</th>
+  <th class="col-notes">Notes</th>
+  <th class="col-small"></th>
+</tr></thead>
+        <tbody id="tBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="summary-grid">
+    <div class="summary-card">
+      <div class="summary-header"><h3>&#128197; Weekly Summary</h3></div>
+      <div class="summary-body">
+        <div class="summary-row"><span class="label">Total Hours</span><span class="value" id="wHours">0.00</span></div>
+        <div class="summary-row"><span class="label">Gross Earnings</span><span class="value" id="wGross">$0.00</span></div>
+        <div class="summary-row"><span class="label">Tax Paid</span><span class="value" id="wTax">$0.00</span></div>
+        <div class="summary-row"><span class="label">Net Earnings</span><span class="value" id="wNet">$0.00</span></div>
+        <div class="summary-row"><span class="label">Kilometers</span><span class="value" id="wKM">0</span></div>
+        <div class="summary-row"><span class="label">Deliveries</span><span class="value" id="wDeliv">0</span></div>
+        <div class="summary-row"><span class="label">Fuel Cost</span><span class="value" id="wFuel">$0.00</span></div>
+        <div class="summary-row"><span class="label">Total Expenses</span><span class="value" id="wExp">$0.00</span></div>
+        <div class="summary-row total"><span class="label">Weekly Profit</span><span class="value" id="wProfit">$0.00</span></div>
+      </div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-header" style="background:linear-gradient(135deg,rgba(224,64,251,0.1),rgba(41,98,255,0.1))"><h3 style="color:var(--purple)">&#128198; Monthly Summary</h3></div>
+      <div class="summary-body">
+        <div class="summary-row"><span class="label">Total Hours</span><span class="value" id="mHours">0.00</span></div>
+        <div class="summary-row"><span class="label">Gross Earnings</span><span class="value" id="mGross">$0.00</span></div>
+        <div class="summary-row"><span class="label">Tax Paid</span><span class="value" id="mTax">$0.00</span></div>
+        <div class="summary-row"><span class="label">Net Earnings</span><span class="value" id="mNet">$0.00</span></div>
+        <div class="summary-row"><span class="label">Kilometers</span><span class="value" id="mKM">0</span></div>
+        <div class="summary-row"><span class="label">Deliveries</span><span class="value" id="mDeliv">0</span></div>
+        <div class="summary-row"><span class="label">Fuel Cost</span><span class="value" id="mFuel">$0.00</span></div>
+        <div class="summary-row"><span class="label">Total Expenses</span><span class="value" id="mExp">$0.00</span></div>
+        <div class="summary-row total"><span class="label">Monthly Profit</span><span class="value" id="mProfit">$0.00</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<button class="settings-fab settings-fab-pay" onclick="toggleSettings()" title="Pay Settings">&#9881;</button>
+<button class="settings-fab settings-fab-fields" onclick="showFieldManager()" title="Field Manager">&#128295;</button>
+<div class="settings-panel" id="settingsPanel">
+  <h3>&#9881; Pay Settings</h3>
+  <div class="settings-row"><label>Hourly Rate</label><input type="number" id="setRate" value="17.85" step="0.01" onchange="updateRate(this.value)"></div>
+  <div class="settings-row"><label>Tax Rate (%)</label><input type="number" id="setTax" value="12" step="0.1" onchange="updateTax(this.value)"></div>
+  <div class="settings-row"><label>OT Threshold (hrs)</label><input type="number" id="setOT" value="8" step="0.5" onchange="updateOT(this.value)"></div>
+  <div class="settings-row"><label>OT Multiplier</label><input type="number" id="setOTM" value="1.5" step="0.1" onchange="updateOTM(this.value)"></div>
+  <div class="settings-row"><label>Currency</label><select class="form-input" id="setCurrency" onchange="updateCurrency(this.value)" style="width:100px">
+    <option value="CAD">CAD $</option>
+    <option value="USD">USD $</option>
+    <option value="EUR">EUR €</option>
+    <option value="GBP">GBP £</option>
+    <option value="AUD">AUD $</option>
+    <option value="INR">INR ₹</option>
+    <option value="JPY">JPY ¥</option>
+    <option value="AED">AED د.إ</option>
+    <option value="SGD">SGD $</option>
+    <option value="NZD">NZD $</option>
+  </select></div>
+  <hr style="border-color:var(--border);margin:1rem 0">
+  <h4 style="color:var(--primary);margin-bottom:0.8rem;font-size:0.95rem">&#127912; Appearance</h4>
+  <div class="theme-toggle-settings">
+    <button class="theme-btn active" id="btnDark" onclick="setTheme('dark')" title="Dark Mode">&#127769;</button>
+    <button class="theme-btn" id="btnLight" onclick="setTheme('light')" title="Light Mode">&#9728;&#65039;</button>
+    <button class="theme-btn" id="btnSystem" onclick="setTheme('system')" title="System Default">&#128187;</button>
+  </div>
+  <button class="btn btn-primary" style="width:100%;margin-top:1rem" onclick="saveSettings();toggleSettings();showT('Settings saved!')">Save & Apply</button>
+</div>
+
+<!-- ==================== FIELD MANAGER FLOATING WINDOW ==================== -->
+<div class="modal-overlay" id="fieldManagerModal">
+  <div class="modal-box field-manager-box">
+    <div class="view-modal-header">
+      <h2>&#128295; Field Manager</h2>
+      <button class="view-close-btn" onclick="hideFieldManager()">&times;</button>
+    </div>
+    <div class="field-manager-body">
+      <p style="color:var(--text-light);font-size:0.85rem;margin-bottom:1rem">Customize your shift form. Add fields, rename them, move between Work Details and Personal Expenses, or hide them.</p>
+
+      <div class="field-manager-section">
+        <div class="field-manager-section-title">&#128188; Work Details Fields</div>
+        <div id="workDetailsFields" class="field-manager-list"></div>
+      </div>
+
+      <div class="field-manager-section">
+        <div class="field-manager-section-title">&#128179; Personal Expenses Fields</div>
+        <div id="personalExpensesFields" class="field-manager-list"></div>
+      </div>
+
+      <div class="field-manager-add">
+        <button class="btn btn-success btn-sm" onclick="showAddFieldForm()" style="width:100%">&#10133; Add New Field</button>
+      </div>
+
+      <div id="addFieldForm" style="display:none;margin-top:1rem;background:var(--card-alt);border-radius:12px;padding:1rem;border:1px solid var(--border)">
+        <div class="form-group" style="margin-bottom:0.6rem">
+          <label class="form-label">Field Name</label>
+          <input type="text" class="form-input" id="newFieldName" placeholder="e.g. Parking Fee">
+        </div>
+        <div class="form-group" style="margin-bottom:0.6rem">
+          <label class="form-label">Section</label>
+          <select class="form-input" id="newFieldSection">
+            <option value="work">Work Details</option>
+            <option value="expense">Personal Expenses</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0.8rem">
+          <label class="form-label">Type</label>
+          <select class="form-input" id="newFieldType">
+            <option value="number">Number (money/km/count)</option>
+            <option value="text">Text</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:0.5rem">
+          <button class="btn btn-primary btn-sm" style="flex:1" onclick="addNewField()">Add Field</button>
+          <button class="btn btn-secondary btn-sm" style="flex:1" onclick="hideAddFieldForm()">Cancel</button>
+        </div>
+      </div>
+    </div>
+    <div class="view-modal-actions">
+      <button class="btn btn-secondary" onclick="hideFieldManager()">Close</button>
+      <button class="btn btn-primary" onclick="saveFieldManager()">&#128190; Save Layout</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span style="font-size:1.2rem">&#9989;</span> <span id="toastMsg">Saved!</span></div>
+
+
+
+<!-- ==================== PROFILE PANEL ==================== -->
+<div class="settings-panel" id="profilePanel" style="left:auto;right:24px;bottom:96px;display:none">
+  <h3>&#128100; Profile Settings</h3>
+  <div style="text-align:center;margin-bottom:1rem">
+    <div style="width:80px;height:80px;border-radius:50%;overflow:hidden;margin:0 auto 0.5rem;background:linear-gradient(135deg,var(--red),var(--blue));display:flex;align-items:center;justify-content:center">
+      <img id="profPhotoPreview" src="" style="width:100%;height:100%;object-fit:cover;display:none">
+      <span id="profPhotoPlaceholder" style="font-size:2.5rem;color:white">&#128100;</span>
+    </div>
+    <input type="file" id="profPhoto" accept="image/*" style="display:none" onchange="previewPhoto(this)">
+    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('profPhoto').click()">&#128247; Change Photo</button>
+  </div>
+  <div class="form-group" style="margin-bottom:0.6rem"><label class="form-label">Full Name</label><input type="text" class="form-input" id="profName" placeholder="Your name"></div>
+  <div class="form-group" style="margin-bottom:0.6rem"><label class="form-label">Email</label><input type="email" class="form-input" id="profEmail" placeholder="your@email.com"></div>
+  <div class="form-group" style="margin-bottom:0.6rem"><label class="form-label">Workplace</label><input type="text" class="form-input" id="profWork" placeholder="Company or workplace"></div>
+  <div class="form-group" style="margin-bottom:0.8rem"><label class="form-label">Date of Birth</label><input type="date" class="form-input" id="profDOB"></div>
+  <button class="btn btn-primary" style="width:100%" onclick="saveProfile()">&#128190; Save Profile</button>
+  <button class="btn btn-secondary" style="width:100%;margin-top:0.5rem" onclick="hideProfile()">Cancel</button>
+</div>
+
+<!-- ==================== VIEW/EDIT SHIFT MODAL ==================== -->
+<div class="modal-overlay" id="viewModal">
+  <div class="modal-box view-modal-box">
+    <div class="view-modal-header">
+      <h2>&#128221; Shift Details</h2>
+      <button class="view-close-btn" onclick="hideViewModal()">&times;</button>
+    </div>
+    <div class="view-modal-body" id="viewModalBody">
+      <!-- Content filled by JS -->
+    </div>
+    <div class="view-modal-actions" id="viewModalActions">
+      <button class="btn btn-secondary" onclick="hideViewModal()">Close</button>
+      <button class="btn btn-primary" id="viewEditBtn" onclick="enableEditMode()">&#9998; Edit</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ==================== MONTHLY VIEW MODAL ==================== -->
+<div class="modal-overlay" id="monthlyViewModal">
+  <div class="modal-box monthly-view-box">
+    <div class="view-modal-header">
+      <h2>&#128197; Monthly Shift History</h2>
+      <button class="view-close-btn" onclick="hideMonthlyView()">&times;</button>
+    </div>
+    <div class="monthly-view-body" id="monthlyViewBody">
+      <!-- Content filled by JS -->
+    </div>
+    <div class="view-modal-actions">
+      <button class="btn btn-secondary" onclick="hideMonthlyView()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="clearModal">
+  <div class="modal-box">
+    <h2>&#9888; Clear All Data?</h2>
+    <p>This will permanently delete all your shift records and cannot be undone.</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="hideClear()">Cancel</button>
+      <button class="btn btn-danger" onclick="doClear()">Yes, Delete All</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
