@@ -2599,230 +2599,670 @@ async function sendEmailReport() {
   }
 
   sendBtn.disabled = true;
-  sendBtn.innerHTML = '&#9203; Generating...';
+  sendBtn.innerHTML = 'Generating...';
   statusDiv.style.display = 'none';
 
   try {
-    // Generate PDF as base64 - PORTRAIT MODE
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     let sym = currencySymbols[currency] || '$';
-    let pageWidth = doc.internal.pageSize.getWidth();
-    let pageHeight = doc.internal.pageSize.getHeight();
-    let margin = 15;
-    let contentWidth = pageWidth - (margin * 2);
+    let W = 210;
+    let H = 297;
+    let M = 12;
+    let CW = W - M * 2;
 
-    // === COVER PAGE ===
-    // Gradient-like header background
+    // === DATA CALCULATIONS ===
+    let totalGross = entries.reduce(function(s, e) { return s + e.gross; }, 0);
+    let totalNet = entries.reduce(function(s, e) { return s + e.net; }, 0);
+    let totalHours = entries.reduce(function(s, e) { return s + e.hours; }, 0);
+    let totalProfit = entries.reduce(function(s, e) { return s + e.daily_profit; }, 0);
+    let totalExp = entries.reduce(function(s, e) {
+      return s + (e.fuel || 0) + (e.grocery || 0) + (e.phone || 0) + (e.wifi || 0) + (e.food || 0) + (e.maintenance || 0) + (e.insurance || 0) + (e.misc || 0) + (e.other || 0);
+    }, 0);
+    let avgHourly = totalHours > 0 ? totalNet / totalHours : 0;
+    let avgProfit = entries.length > 0 ? totalProfit / entries.length : 0;
+    let totalShifts = entries.length;
+    let totalTips = entries.reduce(function(s, e) { return s + (e.tips || 0); }, 0);
+    let totalKM = entries.reduce(function(s, e) { return s + e.km; }, 0);
+    let totalDeliv = entries.reduce(function(s, e) { return s + e.deliveries; }, 0);
+
+    let expBreakdown = [
+      { name: 'Fuel', value: entries.reduce(function(s, e) { return s + (e.fuel || 0); }, 0), r: 239, g: 68, b: 68 },
+      { name: 'Grocery', value: entries.reduce(function(s, e) { return s + (e.grocery || 0); }, 0), r: 249, g: 115, b: 22 },
+      { name: 'Phone', value: entries.reduce(function(s, e) { return s + (e.phone || 0); }, 0), r: 59, g: 130, b: 246 },
+      { name: 'WiFi', value: entries.reduce(function(s, e) { return s + (e.wifi || 0); }, 0), r: 139, g: 92, b: 246 },
+      { name: 'Food', value: entries.reduce(function(s, e) { return s + (e.food || 0); }, 0), r: 236, g: 72, b: 153 },
+      { name: 'Maintenance', value: entries.reduce(function(s, e) { return s + (e.maintenance || 0); }, 0), r: 20, g: 184, b: 166 },
+      { name: 'Insurance', value: entries.reduce(function(s, e) { return s + (e.insurance || 0); }, 0), r: 6, g: 182, b: 212 },
+      { name: 'Misc', value: entries.reduce(function(s, e) { return s + (e.misc || 0); }, 0), r: 234, g: 179, b: 8 },
+      { name: 'Other', value: entries.reduce(function(s, e) { return s + (e.other || 0); }, 0), r: 148, g: 163, b: 184 }
+    ];
+    expBreakdown = expBreakdown.filter(function(e) { return e.value > 0; }).sort(function(a, b) { return b.value - a.value; });
+
+    let healthScore = Math.min(100, Math.max(0, totalProfit > 0 ? 70 + (totalProfit / totalGross) * 30 : 30 + (totalProfit / totalGross) * 20));
+    let healthLabel = healthScore >= 71 ? 'GOOD' : healthScore >= 41 ? 'FAIR' : 'NEEDS ATTENTION';
+    let hR = healthScore >= 71 ? 34 : healthScore >= 41 ? 249 : 239;
+    let hG = healthScore >= 71 ? 197 : healthScore >= 41 ? 115 : 68;
+    let hB = healthScore >= 71 ? 94 : healthScore >= 41 ? 22 : 68;
+
+    let now = new Date();
+    let monthYear = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    let reportId = 'PP-' + now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0') + '-001';
+    let genDate = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    let userName = currentUser ? (currentUser.name || currentUser.username) : 'Guest';
+
+    let sortedEntries = entries.slice().sort(function(a, b) { return new Date(a.date) - new Date(b.date); });
+
+    // === PAGE 1 ===
+
+    // HEADER BAR
     doc.setFillColor(13, 71, 161);
-    doc.rect(0, 0, pageWidth, 60, 'F');
-    doc.setFillColor(25, 118, 210);
-    doc.rect(0, 55, pageWidth, 5, 'F');
-
-    // Logo / Title
+    doc.rect(0, 0, W, 22, 'F');
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(28);
-    doc.setFont('helvetica', 'bold');
-    doc.text('PAYPULSE', margin, 30);
-
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Income Tracker Report', margin, 42);
-
-    // Date & User info
-    doc.setFontSize(10);
-    doc.text(`Generated: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`, margin, 52);
-
-    // User info box
-    let yPos = 75;
-    doc.setFillColor(245, 245, 250);
-    doc.roundedRect(margin, yPos, contentWidth, 35, 3, 3, 'F');
-    doc.setTextColor(30, 30, 30);
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.text('Report For:', margin + 5, yPos + 12);
+    doc.text('PAYPULSE', 30, 11);
+    doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.text(`User: ${currentUser ? (currentUser.name || currentUser.username) : 'Guest'}`, margin + 5, yPos + 22);
-    doc.text(`Email: ${currentUser ? (currentUser.email || 'N/A') : 'N/A'}`, margin + 5, yPos + 30);
-
-    // Summary stats
-    yPos = 120;
-    doc.setFontSize(16);
+    doc.text('Monthly Financial Performance Report', 30, 17);
+    doc.setFontSize(7);
+    doc.text('Prepared for', 160, 9, { align: 'right' });
+    doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(41, 98, 255);
-    doc.text('Summary Overview', margin, yPos);
-    doc.setDrawColor(41, 98, 255);
-    doc.setLineWidth(0.5);
-    doc.line(margin, yPos + 3, margin + 50, yPos + 3);
+    doc.text(userName, 160, 16, { align: 'right' });
 
-    yPos = 135;
-    let totalGross = entries.reduce((s, e) => s + e.gross, 0);
-    let totalNet = entries.reduce((s, e) => s + e.net, 0);
-    let totalHours = entries.reduce((s, e) => s + e.hours, 0);
-    let totalProfit = entries.reduce((s, e) => s + e.daily_profit, 0);
-    let totalExp = entries.reduce((s, e) => s + (e.fuel||0)+(e.grocery||0)+(e.phone||0)+(e.wifi||0)+(e.food||0)+(e.maintenance||0)+(e.insurance||0)+(e.misc||0)+(e.other||0), 0);
-    let totalShifts = entries.length;
+    // SUB-HEADER
+    doc.setFillColor(255, 255, 255);
+    doc.rect(0, 22, W, 10, 'F');
+    doc.setDrawColor(224, 224, 224);
+    doc.line(0, 32, W, 32);
+    doc.setFillColor(219, 234, 254);
+    doc.roundedRect(12, 24, 30, 6, 2, 2, 'F');
+    doc.setTextColor(59, 130, 246);
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'bold');
+    doc.text(monthYear, 27, 28, { align: 'center' });
+    doc.setTextColor(97, 97, 97);
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Generated: ' + genDate, 45, 28);
+    doc.text('Report ID: ' + reportId, 198, 28, { align: 'right' });
 
-    // Stats grid - 2 columns
-    let col1 = margin;
-    let col2 = margin + contentWidth / 2;
+    let y = 38;
 
-    function statBox(x, y, label, value, color) {
-      doc.setFillColor(245, 245, 250);
-      doc.roundedRect(x, y, contentWidth / 2 - 5, 28, 3, 3, 'F');
-      doc.setFontSize(9);
-      doc.setTextColor(100, 100, 100);
-      doc.setFont('helvetica', 'normal');
-      doc.text(label, x + 5, y + 10);
-      doc.setFontSize(14);
-      doc.setTextColor(color[0], color[1], color[2]);
+    // FINANCIAL HEALTH SCORE (left column)
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(224, 224, 224);
+    doc.roundedRect(12, y, 55, 52, 3, 3, 'FD');
+    doc.setTextColor(33, 33, 33);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.text('FINANCIAL HEALTH SCORE', 17, y + 6);
+
+    // Gauge as horizontal bar
+    let gx = 39;
+    let gy = y + 32;
+    doc.setFillColor(240, 240, 240);
+    doc.roundedRect(gx - 20, gy, 40, 6, 3, 3, 'F');
+    doc.setFillColor(hR, hG, hB);
+    doc.roundedRect(gx - 20, gy, 40 * (healthScore / 100), 6, 3, 3, 'F');
+
+    doc.setTextColor(33, 33, 33);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text(Math.round(healthScore).toString(), gx, gy - 5, { align: 'center' });
+    doc.setFontSize(8);
+    doc.setTextColor(158, 158, 158);
+    doc.text('/ 100', gx + 14, gy - 5);
+    doc.setTextColor(hR, hG, hB);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text(healthLabel, gx, gy + 14, { align: 'center' });
+    doc.setTextColor(97, 97, 97);
+    doc.setFontSize(5.5);
+    doc.setFont('helvetica', 'normal');
+    let hMsg = healthScore >= 71 ? 'You are in a good financial position. Keep optimizing!' : 'Your finances need some attention. Review expenses.';
+    let hLines = doc.splitTextToSize(hMsg, 45);
+    doc.text(hLines, gx, gy + 20, { align: 'center' });
+
+    // KEY PERFORMANCE OVERVIEW (right column, 2x3 grid)
+    let rx = 72;
+    let rw = CW - 55 - 5;
+    let cw2 = (rw - 10) / 3;
+    let ch = 22;
+    doc.setTextColor(33, 33, 33);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.text('KEY PERFORMANCE OVERVIEW', rx, y + 4);
+
+    let kpiData = [
+      { label: 'Total Income', value: sym + totalGross.toFixed(2), r: 34, g: 197, b: 94 },
+      { label: 'Total Expenses', value: sym + totalExp.toFixed(2), r: 239, g: 68, b: 68 },
+      { label: 'Net Profit/Loss', value: (totalProfit >= 0 ? '+' : '') + sym + totalProfit.toFixed(2), r: totalProfit >= 0 ? 34 : 239, g: totalProfit >= 0 ? 197 : 68, b: totalProfit >= 0 ? 94 : 68 },
+      { label: 'Hours Worked', value: totalHours.toFixed(2) + ' hrs', r: 139, g: 92, b: 246 },
+      { label: 'Savings Rate', value: totalGross > 0 ? Math.max(0, ((totalGross - totalExp) / totalGross) * 100).toFixed(0) + '%' : '0%', r: 249, g: 115, b: 22 },
+      { label: 'Avg. Earnings/Hr', value: sym + avgHourly.toFixed(2), r: 59, g: 130, b: 246 }
+    ];
+
+    kpiData.forEach(function(kpi, i) {
+      let cx = rx + (i % 3) * (cw2 + 3);
+      let cy = y + 7 + Math.floor(i / 3) * (ch + 3);
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(224, 224, 224);
+      doc.roundedRect(cx, cy, cw2, ch, 3, 3, 'FD');
+      doc.setFillColor(250, 250, 250);
+      doc.circle(cx + 6, cy + ch/2, 4.5, 'F');
+      doc.setTextColor(kpi.r, kpi.g, kpi.b);
+      doc.setFontSize(6);
       doc.setFont('helvetica', 'bold');
-      doc.text(value, x + 5, y + 22);
+      let iconChar = kpi.label.charAt(0);
+      doc.text(iconChar, cx + 6, cy + ch/2 + 1.5, { align: 'center' });
+      doc.setTextColor(97, 97, 97);
+      doc.setFontSize(5);
+      doc.setFont('helvetica', 'normal');
+      doc.text(kpi.label, cx + 14, cy + 6);
+      doc.setTextColor(kpi.r, kpi.g, kpi.b);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.text(kpi.value, cx + 14, cy + 13);
+    });
+
+    // INCOME VS EXPENSES (bottom left)
+    y += 52;
+    let chartH = 45;
+    let chartW = (CW - 5) / 2;
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(224, 224, 224);
+    doc.roundedRect(12, y, chartW, chartH, 3, 3, 'FD');
+    doc.setTextColor(33, 33, 33);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.text('INCOME VS EXPENSES', 17, y + 6);
+
+    let barMax = Math.max(totalGross, totalExp, 1);
+    let barScale = (chartH - 22) / barMax;
+    let bw = 22;
+    let bby = y + chartH - 10;
+
+    let iH = totalGross * barScale;
+    doc.setFillColor(34, 197, 94);
+    doc.roundedRect(27, bby - iH, bw, iH, 2, 2, 'F');
+    doc.setTextColor(34, 197, 94);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.text(sym + totalGross.toFixed(2), 38, bby - iH - 2, { align: 'center' });
+    doc.setTextColor(97, 97, 97);
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Income', 38, bby + 3, { align: 'center' });
+
+    let eH = totalExp * barScale;
+    doc.setFillColor(239, 68, 68);
+    doc.roundedRect(62, bby - eH, bw, eH, 2, 2, 'F');
+    doc.setTextColor(239, 68, 68);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.text(sym + totalExp.toFixed(2), 73, bby - eH - 2, { align: 'center' });
+    doc.setTextColor(97, 97, 97);
+    doc.setFontSize(6);
+    doc.text('Expenses', 73, bby + 3, { align: 'center' });
+
+    let diffAmt = Math.abs(totalProfit);
+    let diffText = totalProfit >= 0 ? 'You saved ' + sym + diffAmt.toFixed(2) + ' this month.' : 'You spent ' + sym + diffAmt.toFixed(2) + ' more than you earned.';
+    doc.setFillColor(254, 226, 226);
+    doc.roundedRect(17, y + chartH - 18, chartW - 10, 8, 2, 2, 'F');
+    doc.setTextColor(239, 68, 68);
+    doc.setFontSize(5.5);
+    doc.setFont('helvetica', 'normal');
+    doc.text('! ' + diffText, 12 + chartW/2, y + chartH - 13, { align: 'center' });
+
+    // CASH FLOW TREND (bottom right)
+    let c2x = 12 + chartW + 5;
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(224, 224, 224);
+    doc.roundedRect(c2x, y, chartW, chartH, 3, 3, 'FD');
+    doc.setTextColor(33, 33, 33);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.text('CASH FLOW TREND (WEEKLY)', c2x + 5, y + 6);
+
+    let incomeTrend = sortedEntries.map(function(e) { return e.gross; });
+    let expenseTrend = sortedEntries.map(function(e) { return (e.fuel || 0) + (e.grocery || 0) + (e.phone || 0) + (e.wifi || 0) + (e.food || 0); });
+
+    let lx = c2x + 8;
+    let ly = y + 16;
+    let lw = chartW - 16;
+    let lh = chartH - 28;
+    doc.setDrawColor(240, 240, 240);
+    doc.setLineWidth(0.15);
+    for (let g = 0; g <= 3; g++) {
+      doc.line(lx, ly + (lh / 3) * g, lx + lw, ly + (lh / 3) * g);
     }
 
-    statBox(col1, yPos, 'Total Shifts', String(totalShifts), [30, 30, 30]);
-    statBox(col2, yPos, 'Total Hours', totalHours.toFixed(2), [30, 30, 30]);
-    yPos += 35;
-    statBox(col1, yPos, 'Gross Earnings', sym + totalGross.toFixed(2), [0, 212, 255]);
-    statBox(col2, yPos, 'Net Earnings', sym + totalNet.toFixed(2), [0, 230, 118]);
-    yPos += 35;
-    statBox(col1, yPos, 'Total Expenses', sym + totalExp.toFixed(2), [255, 23, 68]);
-    statBox(col2, yPos, 'Net Profit', sym + totalProfit.toFixed(2), totalProfit >= 0 ? [0, 230, 118] : [255, 23, 68]);
-
-    // === AI REPORT PAGE ===
-    let reportText = '';
-    if (includeReport) {
-      reportText = generateAIReport();
-      doc.addPage();
-
-      // Header
-      doc.setFillColor(25, 118, 210);
-      doc.rect(0, 0, pageWidth, 18, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.text('AI ANALYSIS REPORT', margin, 12);
-
-      yPos = 28;
-      doc.setTextColor(30, 30, 30);
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      let reportLines = doc.splitTextToSize(reportText, contentWidth);
-      reportLines.forEach(line => {
-        if (yPos > pageHeight - margin) {
-          doc.addPage();
-          yPos = margin;
-        }
-        doc.text(line, margin, yPos);
-        yPos += 5;
-      });
+    if (incomeTrend.length >= 2) {
+      let minI = Math.min.apply(null, incomeTrend);
+      let maxI = Math.max.apply(null, incomeTrend);
+      let rangeI = maxI - minI || 1;
+      let stepI = lw / (incomeTrend.length - 1);
+      doc.setDrawColor(34, 197, 94);
+      doc.setLineWidth(0.5);
+      for (let i = 0; i < incomeTrend.length - 1; i++) {
+        doc.line(lx + i * stepI, ly + lh - ((incomeTrend[i] - minI) / rangeI) * lh,
+                 lx + (i + 1) * stepI, ly + lh - ((incomeTrend[i + 1] - minI) / rangeI) * lh);
+      }
     }
 
-    // === SHIFT DATA PAGE(S) ===
+    if (expenseTrend.length >= 2) {
+      let minE = Math.min.apply(null, expenseTrend);
+      let maxE = Math.max.apply(null, expenseTrend);
+      let rangeE = maxE - minE || 1;
+      let stepE = lw / (expenseTrend.length - 1);
+      doc.setDrawColor(239, 68, 68);
+      doc.setLineWidth(0.5);
+      for (let i = 0; i < expenseTrend.length - 1; i++) {
+        doc.line(lx + i * stepE, ly + lh - ((expenseTrend[i] - minE) / rangeE) * lh,
+                 lx + (i + 1) * stepE, ly + lh - ((expenseTrend[i + 1] - minE) / rangeE) * lh);
+      }
+    }
+
+    doc.setTextColor(158, 158, 158);
+    doc.setFontSize(5);
+    doc.setFont('helvetica', 'normal');
+    let weekLabels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+    weekLabels.forEach(function(w, i) {
+      doc.text(w, lx + (lw / 3) * i, y + chartH - 4, { align: 'center' });
+    });
+
+    // EXPENSE BREAKDOWN (bottom left 2nd row)
+    y += chartH + 5;
+    let bH = 55;
+    let dW = (CW - 5) / 2;
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(224, 224, 224);
+    doc.roundedRect(12, y, dW, bH, 3, 3, 'FD');
+    doc.setTextColor(33, 33, 33);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.text('EXPENSE BREAKDOWN', 17, y + 6);
+
+    let legendX = 17;
+    let legendY = y + 14;
+    expBreakdown.slice(0, 5).forEach(function(exp, i) {
+      let lY = legendY + i * 8;
+      let pct = totalExp > 0 ? Math.round((exp.value / totalExp) * 100) : 0;
+      doc.setFillColor(240, 240, 240);
+      doc.roundedRect(legendX, lY - 1, dW - 10, 3, 1, 1, 'F');
+      if (pct > 0) {
+        doc.setFillColor(exp.r, exp.g, exp.b);
+        doc.roundedRect(legendX, lY - 1, (dW - 10) * (pct / 100), 3, 1, 1, 'F');
+      }
+      doc.setTextColor(33, 33, 33);
+      doc.setFontSize(5.5);
+      doc.setFont('helvetica', 'normal');
+      doc.text(exp.name, legendX + 3, lY + 3.5);
+      doc.setFont('helvetica', 'bold');
+      doc.text(sym + exp.value.toFixed(2), legendX + dW - 35, lY + 3.5, { align: 'right' });
+      doc.setTextColor(158, 158, 158);
+      doc.setFont('helvetica', 'normal');
+      doc.text(pct + '%', legendX + dW - 8, lY + 3.5, { align: 'right' });
+    });
+
+    doc.setTextColor(33, 33, 33);
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Total Expenses', 17, y + bH - 8);
+    doc.text(sym + totalExp.toFixed(2), 12 + dW - 5, y + bH - 8, { align: 'right' });
+
+    // AI QUICK INSIGHTS (bottom right 2nd row)
+    let iX = 12 + dW + 5;
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(224, 224, 224);
+    doc.roundedRect(iX, y, CW - dW - 5, bH, 3, 3, 'FD');
+    doc.setTextColor(33, 33, 33);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.text('AI QUICK INSIGHTS', iX + 5, y + 6);
+
+    let insightData = [
+      'Expenses exceeded income by ' + sym + diffAmt.toFixed(2) + ' this month.',
+      'Fuel accounted for ' + (expBreakdown[0] ? Math.round((expBreakdown[0].value/totalExp)*100) : 0) + '% of your total spending.',
+      'Your average earnings per hour were ' + sym + avgHourly.toFixed(2) + '.',
+      'Reducing discretionary spending by 15% could improve your monthly cash flow.'
+    ];
+
+    insightData.forEach(function(ins, i) {
+      let iY = y + 14 + i * 10;
+      doc.setFillColor(250, 250, 250);
+      doc.roundedRect(iX + 5, iY - 4, 6, 6, 1.5, 1.5, 'F');
+      doc.setTextColor(59, 130, 246);
+      doc.setFontSize(5);
+      doc.setFont('helvetica', 'bold');
+      doc.text('i', iX + 8, iY, { align: 'center' });
+      doc.setTextColor(33, 33, 33);
+      doc.setFontSize(6);
+      doc.setFont('helvetica', 'normal');
+      let lines = doc.splitTextToSize(ins, CW - dW - 20);
+      doc.text(lines, iX + 14, iY);
+    });
+
+    // Footer Page 1
+    doc.setFontSize(6);
+    doc.setTextColor(158, 158, 158);
+    doc.setFont('helvetica', 'normal');
+    doc.text('PayPulse Income Tracker', 12, 291);
+    doc.text('Page 1 of 2', 198, 291, { align: 'right' });
+
+    // === PAGE 2 ===
     doc.addPage();
 
     // Header
-    doc.setFillColor(25, 118, 210);
-    doc.rect(0, 0, pageWidth, 18, 'F');
+    doc.setFillColor(13, 71, 161);
+    doc.rect(0, 0, W, 18, 'F');
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(14);
+    doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text('SHIFT HISTORY', margin, 12);
+    doc.text('PAYPULSE', 30, 9);
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Monthly Financial Performance Report', 30, 14);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text(monthYear, 198, 9, { align: 'right' });
+    doc.setFontSize(5.5);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Report ID: ' + reportId, 198, 14, { align: 'right' });
 
-    // Compact table data
-    let tableData = entries.map(e => [
-      e.date,
-      e.time_in + '-' + e.time_out,
-      e.hours.toFixed(2),
-      sym + e.gross.toFixed(2),
-      sym + e.net.toFixed(2),
-      sym + e.daily_profit.toFixed(2)
-    ]);
+    y = 24;
 
-    doc.autoTable({
-      startY: 25,
-      head: [['Date', 'Time', 'Hrs', 'Gross', 'Net', 'Profit']],
-      body: tableData,
-      theme: 'grid',
-      headStyles: { 
-        fillColor: [255, 23, 68], 
-        textColor: 255, 
-        fontSize: 9,
-        fontStyle: 'bold'
-      },
-      bodyStyles: { 
-        fontSize: 8,
-        textColor: [30, 30, 30]
-      },
-      alternateRowStyles: { fillColor: [248, 248, 252] },
-      margin: { left: margin, right: margin },
-      styles: { 
-        cellPadding: 2,
-        font: 'helvetica'
-      },
-      columnStyles: {
-        0: { cellWidth: 28 },
-        1: { cellWidth: 25 },
-        2: { cellWidth: 15, halign: 'center' },
-        3: { cellWidth: 25, halign: 'right' },
-        4: { cellWidth: 25, halign: 'right' },
-        5: { cellWidth: 25, halign: 'right' }
+    // MONTHLY SUMMARY (left)
+    let sW = CW * 0.52;
+    let sH = 55;
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(224, 224, 224);
+    doc.roundedRect(12, y, sW, sH, 3, 3, 'FD');
+    doc.setTextColor(13, 71, 161);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('1. MONTHLY SUMMARY', 17, y + 6);
+    doc.setTextColor(97, 97, 97);
+    doc.setFontSize(6.5);
+    doc.setFont('helvetica', 'normal');
+    let summaryText = 'During ' + monthYear + ', you completed ' + totalShifts + ' work shift' + (totalShifts > 1 ? 's' : '') + ' totaling ' + totalHours.toFixed(2) + ' hours. Your total earnings reached ' + sym + totalGross.toFixed(2) + ', while total expenses amounted to ' + sym + totalExp.toFixed(2) + '. This resulted in a net ' + (totalProfit >= 0 ? 'profit' : 'loss') + ' of ' + sym + Math.abs(totalProfit).toFixed(2) + ' for the month.';
+    let sLines = doc.splitTextToSize(summaryText, sW - 10);
+    doc.text(sLines, 17, y + 14);
+
+    // INCOME ANALYSIS (right)
+    let iW = CW - sW - 5;
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(224, 224, 224);
+    doc.roundedRect(12 + sW + 5, y, iW, sH, 3, 3, 'FD');
+    doc.setTextColor(13, 71, 161);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('2. INCOME ANALYSIS', 12 + sW + 10, y + 6);
+    doc.setTextColor(33, 33, 33);
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Daily Income Trend', 12 + sW + 10, y + 12);
+
+    let tX = 12 + sW + 10;
+    let tY = y + 15;
+    let tW = iW - 15;
+    let tH = 22;
+    doc.setDrawColor(240, 240, 240);
+    doc.setLineWidth(0.15);
+    for (let g = 0; g <= 3; g++) {
+      doc.line(tX, tY + (tH / 3) * g, tX + tW, tY + (tH / 3) * g);
+    }
+
+    if (sortedEntries.length >= 2) {
+      let netData = sortedEntries.map(function(e) { return e.net; });
+      let minN = Math.min.apply(null, netData);
+      let maxN = Math.max.apply(null, netData);
+      let rangeN = maxN - minN || 1;
+      let stepN = tW / (netData.length - 1);
+      doc.setDrawColor(34, 197, 94);
+      doc.setLineWidth(0.5);
+      for (let i = 0; i < netData.length - 1; i++) {
+        doc.line(tX + i * stepN, tY + tH - ((netData[i] - minN) / rangeN) * tH,
+                 tX + (i + 1) * stepN, tY + tH - ((netData[i + 1] - minN) / rangeN) * tH);
+      }
+    }
+
+    doc.setTextColor(158, 158, 158);
+    doc.setFontSize(4.5);
+    doc.setFont('helvetica', 'normal');
+    let dateLabels = sortedEntries.map(function(e) { return new Date(e.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); });
+    dateLabels.forEach(function(d, i) {
+      if (i % Math.ceil(dateLabels.length / 4) === 0) {
+        doc.text(d, tX + (tW / (dateLabels.length - 1 || 1)) * i, tY + tH + 3, { align: 'center' });
       }
     });
 
-    // Footer on each page
-    let pageCount = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
+    let bestDay = entries.reduce(function(max, e) { return e.net > max.net ? e : max; }, entries[0]);
+    let worstDay = entries.reduce(function(min, e) { return e.net < min.net ? e : min; }, entries[0]);
+    let avgShiftVal = totalNet / entries.length;
+
+    let miniCards = [
+      { label: 'Best Earning Day', value: sym + bestDay.net.toFixed(2), sub: new Date(bestDay.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), r: 34, g: 197, b: 94 },
+      { label: 'Average Shift', value: sym + avgShiftVal.toFixed(2), sub: 'per shift', r: 59, g: 130, b: 246 },
+      { label: 'Lowest Earning Day', value: sym + worstDay.net.toFixed(2), sub: new Date(worstDay.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), r: 239, g: 68, b: 68 }
+    ];
+
+    let mcw = (iW - 14) / 3;
+    miniCards.forEach(function(card, i) {
+      let cX = 12 + sW + 10 + i * (mcw + 2);
+      let cY = y + sH - 14;
+      doc.setFillColor(250, 250, 250);
+      doc.setDrawColor(card.r, card.g, card.b);
+      doc.roundedRect(cX, cY, mcw, 12, 2, 2, 'FD');
+      doc.setTextColor(card.r, card.g, card.b);
+      doc.setFontSize(5);
+      doc.setFont('helvetica', 'bold');
+      doc.text(card.label, cX + mcw/2, cY + 4, { align: 'center' });
       doc.setFontSize(8);
-      doc.setTextColor(150, 150, 150);
+      doc.text(card.value, cX + mcw/2, cY + 9, { align: 'center' });
+      doc.setTextColor(158, 158, 158);
+      doc.setFontSize(4);
       doc.setFont('helvetica', 'normal');
-      doc.text(`PayPulse Income Tracker | Page ${i} of ${pageCount}`, margin, pageHeight - 8);
-      doc.text('Generated by PayPulse', pageWidth - margin, pageHeight - 8, { align: 'right' });
-    }
+      doc.text(card.sub, cX + mcw/2, cY + 12, { align: 'center' });
+    });
 
-    // Get PDF as base64
+    // EXPENSE ANALYSIS (left)
+    y += 60;
+    let eW = CW * 0.48;
+    let eH = 45;
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(224, 224, 224);
+    doc.roundedRect(12, y, eW, eH, 3, 3, 'FD');
+    doc.setTextColor(13, 71, 161);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('3. EXPENSE ANALYSIS', 17, y + 6);
+
+    doc.setFillColor(250, 250, 250);
+    doc.rect(15, y + 10, eW - 6, 5, 'F');
+    doc.setTextColor(97, 97, 97);
+    doc.setFontSize(5.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Category', 18, y + 13);
+    doc.text('Amount', 15 + eW - 35, y + 13, { align: 'right' });
+    doc.text('% of Total', 15 + eW - 8, y + 13, { align: 'right' });
+
+    expBreakdown.slice(0, 5).forEach(function(exp, i) {
+      let rY = y + 18 + i * 5.5;
+      let pct = totalExp > 0 ? Math.round((exp.value / totalExp) * 100) : 0;
+      doc.setFillColor(240, 240, 240);
+      doc.roundedRect(15, rY - 1, eW - 6, 3, 1, 1, 'F');
+      if (pct > 0) {
+        doc.setFillColor(exp.r, exp.g, exp.b);
+        doc.roundedRect(15, rY - 1, (eW - 6) * (pct / 100), 3, 1, 1, 'F');
+      }
+      doc.setTextColor(33, 33, 33);
+      doc.setFontSize(5.5);
+      doc.setFont('helvetica', 'normal');
+      doc.text(exp.name, 18, rY + 3.5);
+      doc.setFont('helvetica', 'bold');
+      doc.text(sym + exp.value.toFixed(2), 15 + eW - 35, rY + 3.5, { align: 'right' });
+      doc.setTextColor(158, 158, 158);
+      doc.setFont('helvetica', 'normal');
+      doc.text(pct + '%', 15 + eW - 8, rY + 3.5, { align: 'right' });
+    });
+
+    // PRODUCTIVITY ANALYSIS (right)
+    let pW = CW - eW - 5;
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(224, 224, 224);
+    doc.roundedRect(12 + eW + 5, y, pW, eH, 3, 3, 'FD');
+    doc.setTextColor(13, 71, 161);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('4. PRODUCTIVITY ANALYSIS', 12 + eW + 10, y + 6);
+
+    let prodMetrics = [
+      { label: 'Hours Worked', value: totalHours.toFixed(2) + ' hrs', r: 34, g: 197, b: 94 },
+      { label: 'Income Earned', value: sym + totalNet.toFixed(2), r: 59, g: 130, b: 246 },
+      { label: 'Hourly Rate', value: sym + settings.rate.toFixed(2), r: 249, g: 115, b: 22 },
+      { label: 'Cost Per Hour', value: sym + (totalExp / totalHours).toFixed(2), r: 239, g: 68, b: 68 },
+      { label: 'Profit Per Hour', value: sym + avgProfit.toFixed(2), r: totalProfit >= 0 ? 34 : 239, g: totalProfit >= 0 ? 197 : 68, b: totalProfit >= 0 ? 94 : 68 }
+    ];
+
+    let mW = (pW - 10) / 5;
+    prodMetrics.forEach(function(m, i) {
+      let mX = 12 + eW + 10 + i * mW;
+      let mY = y + 14;
+      // Simple bar gauge
+      let bW = mW - 4;
+      let bH = 4;
+      doc.setFillColor(240, 240, 240);
+      doc.roundedRect(mX + 2, mY, bW, bH, 2, 2, 'F');
+      doc.setFillColor(m.r, m.g, m.b);
+      doc.roundedRect(mX + 2, mY, bW * 0.7, bH, 2, 2, 'F');
+      doc.setTextColor(33, 33, 33);
+      doc.setFontSize(6);
+      doc.setFont('helvetica', 'bold');
+      doc.text(m.value, mX + mW/2, mY + 10, { align: 'center' });
+      doc.setTextColor(97, 97, 97);
+      doc.setFontSize(4.5);
+      doc.setFont('helvetica', 'normal');
+      doc.text(m.label, mX + mW/2, mY + 14, { align: 'center' });
+    });
+
+    // AI RECOMMENDATIONS
+    y += eH + 5;
+    let rH = 38;
+    let rW = (CW - 5) / 2;
+
+    let recs = [
+      { title: 'Increase Income', items: ['Work additional peak hours', 'Target high-demand periods', 'Focus on weekends', 'Increase productive work time', 'Maintain high customer ratings'], r: 34, g: 197, b: 94 },
+      { title: 'Reduce Expenses', items: ['Reduce fuel consumption', 'Optimize delivery routes', 'Track recurring subscriptions', 'Minimize non-essential spending', 'Plan and combine errands'], r: 239, g: 68, b: 68 }
+    ];
+
+    recs.forEach(function(rec, i) {
+      let rX = 12 + i * (rW + 5);
+      let rY = y;
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(224, 224, 224);
+      doc.roundedRect(rX, rY, rW, rH, 3, 3, 'FD');
+      doc.setFillColor(250, 250, 250);
+      doc.roundedRect(rX + 5, rY + 5, 5, 5, 1.5, 1.5, 'F');
+      doc.setTextColor(rec.r, rec.g, rec.b);
+      doc.setFontSize(5);
+      doc.setFont('helvetica', 'bold');
+      doc.text('>', rX + 7.5, rY + 8, { align: 'center' });
+      doc.setFontSize(7);
+      doc.text(rec.title, rX + 13, rY + 8);
+      rec.items.forEach(function(item, j) {
+        let iY = rY + 15 + j * 4.5;
+        doc.setTextColor(34, 197, 94);
+        doc.setFontSize(5);
+        doc.setFont('helvetica', 'bold');
+        doc.text('+', rX + 6, iY);
+        doc.setTextColor(33, 33, 33);
+        doc.setFontSize(5.5);
+        doc.setFont('helvetica', 'normal');
+        doc.text(item, rX + 10, iY);
+      });
+    });
+
+    // FUTURE PROJECTION
+    y += rH + 5;
+    let pH = 38;
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(224, 224, 224);
+    doc.roundedRect(12, y, CW, pH, 3, 3, 'FD');
+    doc.setTextColor(13, 71, 161);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('6. FUTURE PROJECTION', 17, y + 6);
+    doc.setTextColor(158, 158, 158);
+    doc.setFontSize(5);
+    doc.setFont('helvetica', 'normal');
+    doc.text('If current trend continues', 17, y + 10);
+
+    let projM = 4.3;
+    let projections = [
+      { label: 'Projected Monthly Income', value: sym + (totalGross * projM).toFixed(2), r: 34, g: 197, b: 94 },
+      { label: 'Projected Monthly Expenses', value: sym + (totalExp * projM).toFixed(2), r: 239, g: 68, b: 68 },
+      { label: 'Projected Monthly Profit', value: sym + (totalProfit * projM).toFixed(2), r: totalProfit >= 0 ? 34 : 239, g: totalProfit >= 0 ? 197 : 68, b: totalProfit >= 0 ? 94 : 68 }
+    ];
+
+    let pCW = (CW - 20) / 3;
+    projections.forEach(function(proj, i) {
+      let pX = 17 + i * (pCW + 3);
+      let pY = y + 14;
+      doc.setFillColor(250, 250, 250);
+      doc.setDrawColor(proj.r, proj.g, proj.b);
+      doc.roundedRect(pX, pY, pCW, 16, 2, 2, 'FD');
+      doc.setTextColor(158, 158, 158);
+      doc.setFontSize(5);
+      doc.setFont('helvetica', 'normal');
+      doc.text(proj.label, pX + pCW/2, pY + 5, { align: 'center' });
+      doc.setTextColor(proj.r, proj.g, proj.b);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text(proj.value, pX + pCW/2, pY + 12, { align: 'center' });
+    });
+
+    // Footer Page 2
+    doc.setFontSize(6);
+    doc.setTextColor(158, 158, 158);
+    doc.setFont('helvetica', 'normal');
+    doc.text('PayPulse Income Tracker', 12, 291);
+    doc.text('Page 2 of 2', 198, 291, { align: 'right' });
+
+    // === SEND EMAIL ===
     let pdfBase64 = doc.output('datauristring').split(',')[1];
-
-    // Send to server
-    sendBtn.innerHTML = '&#128231; Sending...';
+    sendBtn.innerHTML = 'Sending...';
+    let reportText = includeReport ? generateAIReport() : '';
 
     let res = await fetch('/api/email-report', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: email,
-        pdf_base64: pdfBase64,
-        report_text: includeReport ? reportText : ''
-      })
+      body: JSON.stringify({ email: email, pdf_base64: pdfBase64, report_text: reportText })
     });
 
     let data = await res.json();
-
     if (data.success) {
-      statusDiv.textContent = '✅ Report sent to ' + email;
+      statusDiv.textContent = '\u2705 Report sent to ' + email;
       statusDiv.className = 'success';
       statusDiv.style.display = 'block';
-      sendBtn.innerHTML = '&#9989; Sent!';
-      setTimeout(() => {
-        hideEmailExport();
-        showT('Report emailed successfully!');
-      }, 2000);
+      sendBtn.innerHTML = '\u2705 Sent!';
+      setTimeout(function() { hideEmailExport(); showT('Report emailed successfully!'); }, 2000);
     } else {
       statusDiv.textContent = data.error || 'Failed to send email';
       statusDiv.className = 'error';
       statusDiv.style.display = 'block';
       sendBtn.disabled = false;
-      sendBtn.innerHTML = '&#128231; Try Again';
+      sendBtn.innerHTML = '\u2705 Try Again';
     }
   } catch (err) {
-    console.error(err);
+    console.error('Email report error:', err);
     statusDiv.textContent = 'Failed to generate or send report';
     statusDiv.className = 'error';
     statusDiv.style.display = 'block';
     sendBtn.disabled = false;
-    sendBtn.innerHTML = '&#128231; Try Again';
+    sendBtn.innerHTML = 'Try Again';
   }
 }
 
@@ -2831,7 +3271,6 @@ document.addEventListener('click', function(e) {
   let emailModal = document.getElementById('emailModal');
   if (emailModal && e.target === emailModal) hideEmailExport();
 });
-
 // ==================== EVENT LISTENERS ====================
 document.addEventListener('click', function(e) {
   let panel = document.getElementById('settingsPanel');
